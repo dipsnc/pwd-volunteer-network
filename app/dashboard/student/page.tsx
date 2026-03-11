@@ -1,264 +1,299 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { DashboardSidebar } from '@/components/dashboard-sidebar'
-import { Search, Bell, Settings, CheckCircle, FileWarning, Clock, Calendar, FileText, Home, MoreHorizontal, MapPin, Phone } from 'lucide-react'
+import { Search, Bell, Settings, CheckCircle, FileWarning, Clock, Calendar, FileText, Home, MoreHorizontal, MapPin, Phone, Users, ShieldCheck, BookOpen } from 'lucide-react'
+import { getVolunteerRequests, getCurrentUser, type VolunteerRequest } from '@/lib/store'
+import RequestVolunteerCard from '@/components/request-volunteer-card'
+import VolunteerRequestCard from '@/components/volunteer-request-card'
+import VolunteerRequestForm from '@/components/volunteer-request-form'
+import Link from 'next/link'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
+import {motion, AnimatePresence} from 'framer-motion'
+import { cn } from '@/lib/utils'
 
-const requestStatus = [
-  { id: 1, label: 'Submitted', date: 'Oct 24, 09:30 AM', completed: true },
-  { id: 2, label: 'Under Review', date: 'Oct 25, 02:15 PM', completed: true },
-  { id: 3, label: 'Approval', date: 'In Progress', completed: false, active: true },
-  { id: 4, label: 'Scheduled', date: 'Pending', completed: false },
-]
-
-const activeRequests = [
+const MOCK_REQUESTS: VolunteerRequest[] = [
   {
-    id: 1,
-    type: 'Exam Extension',
-    description: 'CS101 - Midterm exam extra time request.',
-    status: 'PENDING',
-    date: 'Created 2d ago',
-    icon: FileText,
+    id: 'mock-1',
+    studentId: 'system',
+    studentName: 'Aarav Sharma',
+    studentAvatar: '',
+    title: 'Scribe for Mathematics Exam',
+    description: 'Need a scribe for the upcoming calculus midterm on Monday. Experience with math notation preferred.',
+    date: '2026-03-15',
+    time: '14:00',
+    urgency: 'high',
+    tasks: ['Write down equations', 'Diagram sketching', 'Text transcription'],
+    categoryTags: ['Scribe', 'Cognitive Support'],
+    location: { lat: 19.1136, lng: 72.8697, address: 'Mathematics Dept, Room 302, Mumbai' },
+    status: 'open',
+    createdAt: new Date(Date.now() - 86400000).toISOString()
   },
   {
-    id: 2,
-    type: 'Lab Aide',
-    description: 'Chemistry Lab 4 assistance for wheelchair access.',
-    status: 'ASSIGNED',
-    date: 'Tomorrow, 10:00',
-    icon: Home,
-  },
-  {
-    id: 3,
-    type: 'Resource Access',
-    description: 'Digital textbook accessibility format request.',
-    status: 'IN PROGRESS',
-    date: 'Created 5d ago',
-    icon: FileWarning,
-  },
-]
-
-const schedule = [
-  {
-    day: 'MON',
-    date: '28',
-    title: 'Advanced Mathematics',
-    time: '10:00 AM - 11:30 AM',
-    location: 'Hall B',
-    tag: 'Note Taker Provided',
-  },
-  {
-    day: 'MON',
-    date: '28',
-    title: 'Introduction to Sociology',
-    time: '01:00 PM - 02:30 PM',
-    location: 'Room 204',
-  },
-  {
-    day: 'TUE',
-    date: '29',
-    title: 'Lab Session: Organic Chemistry',
-    time: '09:00 AM - 12:00 PM',
-    location: 'Science Wing',
-    tag: 'Assistant Assigned',
-  },
+    id: 'mock-2',
+    studentId: 'system',
+    studentName: 'Priya Iyer',
+    studentAvatar: '',
+    title: 'Lab Assistant for Chemistry',
+    description: 'Looking for someone to help handle glassware and record observations during the organic chemistry lab.',
+    date: '2026-03-16',
+    time: '10:00',
+    urgency: 'medium',
+    tasks: ['Equipment setup', 'Data entry', 'Cleanup assistance'],
+    categoryTags: ['Lab Assistant', 'Physical Mobility'],
+    location: { lat: 19.1140, lng: 72.8700, address: 'Science Block B, Lab 4, Mumbai' },
+    status: 'assigned',
+    createdAt: new Date(Date.now() - 172800000).toISOString()
+  }
 ]
 
 export default function StudentDashboardPage() {
   const [scheduleView, setScheduleView] = useState<'week' | 'month'>('week')
+  const [showRequestForm, setShowRequestForm] = useState(false)
+  const [selectedRequest, setSelectedRequest] = useState<VolunteerRequest | undefined>(undefined)
+  const [selectedStatusRequestId, setSelectedStatusRequestId] = useState<string | null>(null)
+  const [requests, setRequests] = useState<VolunteerRequest[]>([])
+  const [user, setUser] = useState<ReturnType<typeof getCurrentUser>>(null)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+    const currentUser = getCurrentUser()
+    setUser(currentUser)
+  }, [])
+
+  useEffect(() => {
+    if (user) {
+      const userRequests = getVolunteerRequests().filter(r => r.studentId === user.id)
+      const combined = [...MOCK_REQUESTS, ...userRequests]
+      setRequests(combined)
+      if (combined.length > 0 && !selectedStatusRequestId) {
+        setSelectedStatusRequestId(combined[0].id)
+      }
+    }
+  }, [user?.id])
+
+  const refreshRequests = () => {
+    if (user) {
+      const userRequests = getVolunteerRequests().filter(r => r.studentId === user.id)
+      const combined = [...MOCK_REQUESTS, ...userRequests]
+      setRequests(combined)
+      if (combined.length > 0 && !selectedStatusRequestId) {
+        setSelectedStatusRequestId(combined[0].id)
+      }
+    }
+    setShowRequestForm(false)
+    setSelectedRequest(undefined)
+  }
+
+  const handleOpenForm = (request?: VolunteerRequest) => {
+    setSelectedRequest(request)
+    setShowRequestForm(true)
+  }
+
+  if (!mounted) return <div className="min-h-screen bg-background" />
+
+  const selectedReqForStatus = requests.find(r => r.id === selectedStatusRequestId);
 
   return (
-    <div className="min-h-screen bg-background">
-      <DashboardSidebar type="student" userName="Alex Johnson" userId="20240912" />
+    <div className="min-h-screen bg-background text-foreground">
+      <DashboardSidebar type="student" userName={user?.fullName || "Student"} userId={user?.id?.substring(0, 8).toUpperCase()} />
       
       <main className="lg:ml-64 min-h-screen">
         {/* Header */}
-        <header className="sticky top-0 z-30 bg-card border-b border-border px-6 py-4">
+        <header className="sticky top-0 z-30 bg-card/80 backdrop-blur-md border-b border-border px-8 py-5">
           <div className="flex items-center justify-between">
-            <div className="lg:ml-0 ml-12">
-              <h1 className="text-2xl font-bold text-foreground">Welcome back, Alex</h1>
-              <p className="text-muted-foreground">Here&apos;s what&apos;s happening with your campus requests.</p>
+            <div>
+              <h1 className="text-3xl font-display font-bold text-foreground">
+                Welcome back, {user?.fullName?.split(' ')[0] || "Student"}
+              </h1>
+              <p className="text-muted-foreground font-medium">Manage your requests and campus support.</p>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="hidden md:flex items-center gap-2 bg-muted rounded-xl px-4 py-2">
+            <div className="flex items-center gap-6">
+              <div className="hidden md:flex items-center gap-2 bg-muted/50 rounded-2xl px-5 py-2.5 border border-border/50">
                 <Search className="w-4 h-4 text-muted-foreground" />
                 <input 
                   type="text" 
                   placeholder="Search requests..." 
-                  className="bg-transparent border-none outline-none text-sm w-40"
+                  className="bg-transparent border-none outline-none text-sm w-48 font-medium"
                 />
               </div>
-              <button className="p-2 rounded-xl hover:bg-muted transition-colors relative">
-                <Bell className="w-5 h-5 text-muted-foreground" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
-              </button>
-              <button className="p-2 rounded-xl hover:bg-muted transition-colors">
-                <Settings className="w-5 h-5 text-muted-foreground" />
-              </button>
             </div>
           </div>
         </header>
 
-        <div className="p-6 space-y-6">
-          {/* Current Request Status */}
-          <div className="bg-card rounded-2xl p-6 border border-border">
-            <h2 className="text-lg font-semibold text-foreground mb-6">
-              Current Request Status: <span className="text-primary">Exam Accommodations</span>
-            </h2>
-            <div className="flex items-center justify-between">
-              {requestStatus.map((step, index) => (
-                <div key={step.id} className="flex items-center flex-1">
-                  <div className="flex flex-col items-center">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                      step.completed ? 'bg-primary' : step.active ? 'bg-primary/20 border-2 border-primary' : 'bg-muted'
-                    }`}>
-                      {step.completed ? (
-                        <CheckCircle className="w-5 h-5 text-primary-foreground" />
-                      ) : step.active ? (
-                        <div className="w-3 h-3 bg-primary rounded-full animate-pulse" />
-                      ) : (
-                        <Calendar className="w-5 h-5 text-muted-foreground" />
-                      )}
+        <div className="p-8 space-y-10">
+          {/* Top Actions Section */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+             <RequestVolunteerCard onClick={() => handleOpenForm()} />
+             
+              {/* Current Status Widget */}
+              <div className="lg:col-span-2 bg-card rounded-3xl p-8 border border-border shadow-soft flex flex-col justify-center relative overflow-hidden group">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-10 relative z-10">
+                    <div>
+                      <h2 className="text-xl font-display font-bold text-foreground leading-none">
+                        Live Support <span className="text-primary">Status</span>
+                      </h2>
+                      <p className="text-xs text-muted-foreground mt-2 font-medium">Tracking progress for your active requests</p>
                     </div>
-                    <p className={`text-sm font-medium mt-2 ${step.active ? 'text-primary' : step.completed ? 'text-foreground' : 'text-muted-foreground'}`}>
-                      {step.label}
-                    </p>
-                    <p className="text-xs text-muted-foreground">{step.date}</p>
+                    
+                    <div className="flex items-center gap-3">
+                      <select 
+                        value={selectedStatusRequestId || ''} 
+                        onChange={(e) => setSelectedStatusRequestId(e.target.value)}
+                        className="bg-muted/50 border border-border rounded-xl px-4 py-2 text-xs font-bold focus:ring-2 focus:ring-primary/20 outline-none transition-all cursor-pointer max-w-[200px]"
+                      >
+                        {requests.length > 0 ? (
+                          requests.map(r => (
+                            <option key={r.id} value={r.id}>{r.title}</option>
+                          ))
+                        ) : (
+                          <option value="">No requests found</option>
+                        )}
+                      </select>
+                      <Badge variant="outline" className="text-[10px] font-bold text-primary border-primary/20 bg-primary/5 px-4 py-2 shrink-0">
+                        {selectedReqForStatus?.status === 'open' ? 'Reviewing' : 'Active'}
+                      </Badge>
+                    </div>
                   </div>
-                  {index < requestStatus.length - 1 && (
-                    <div className={`flex-1 h-0.5 mx-4 ${step.completed ? 'bg-primary' : 'bg-border'}`} />
-                  )}
+
+                <div className="flex items-center px-2">
+                  {[
+                    { id: 1, label: 'Submitted' },
+                    { id: 2, label: 'Approval' },
+                    { id: 3, label: 'Matching' },
+                    { id: 4, label: 'Active' },
+                  ].map((step, index, array) => {
+                    const isCompleted = selectedReqForStatus ? (
+                      selectedReqForStatus.status === 'completed' || 
+                      (selectedReqForStatus.status === 'assigned' && step.id <= 3) ||
+                      (selectedReqForStatus.status === 'open' && step.id <= 1)
+                    ) : false;
+                    const isActive = selectedReqForStatus ? (
+                      (selectedReqForStatus.status === 'open' && step.id === 2) ||
+                      (selectedReqForStatus.status === 'assigned' && step.id === 4)
+                    ) : false;
+
+                    return (
+                      <div key={step.id} className="flex items-center flex-1">
+                        <div className="flex flex-col items-center">
+                          <div className={cn(
+                            "w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-500",
+                            isCompleted ? "bg-primary shadow-soft text-primary-foreground" : 
+                            isActive ? "bg-primary/10 border-2 border-primary animate-soft-glow text-primary" : 
+                            "bg-muted/30 text-muted-foreground/40 border border-border/50"
+                          )}>
+                            {isCompleted ? <CheckCircle className="w-6 h-6" /> : 
+                             isActive ? <Clock className="w-6 h-6 animate-spin-slow" /> : 
+                             <Calendar className="w-6 h-6" />}
+                          </div>
+                          <p className={cn(
+                            "text-[10px] font-black mt-4 uppercase tracking-wider transition-colors duration-500",
+                            isCompleted || isActive ? "text-foreground" : "text-muted-foreground/50"
+                          )}>
+                            {step.label}
+                          </p>
+                        </div>
+                        {index < array.length - 1 && (
+                          <div className="flex-1 px-4 mb-8">
+                             <div className={cn(
+                               "h-1 rounded-full transition-all duration-700",
+                               isCompleted ? "bg-primary" : "bg-border/30"
+                             )} />
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
-              ))}
-            </div>
+              </div>
           </div>
 
-          <div className="grid lg:grid-cols-3 gap-6">
-            {/* Active Requests */}
-            <div className="lg:col-span-2 space-y-6">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-foreground">Active Requests</h2>
-                <button className="text-sm text-primary font-medium hover:underline">View All</button>
-              </div>
+          <div className="grid lg:grid-cols-3 gap-8">
+             {/* Active Requests List */}
+             <div className="lg:col-span-2 space-y-6">
+               <div className="flex items-center justify-between">
+                 <div>
+                    <h2 className="text-2xl font-display font-bold text-foreground">My Volunteer <span className="text-primary">Requests</span></h2>
+                    <p className="text-xs text-muted-foreground font-bold mt-1 opacity-70">Found {requests.length} open postings</p>
+                 </div>
+                 <button className="text-[10px] font-bold text-primary hover:underline transition-all">View All History</button>
+               </div>
               
-              <div className="grid md:grid-cols-3 gap-4">
-                {activeRequests.map((request) => (
-                  <div key={request.id} className="bg-card rounded-2xl p-5 border border-border hover:shadow-md transition-shadow">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${
-                      request.status === 'PENDING' ? 'bg-yellow-100' : 
-                      request.status === 'ASSIGNED' ? 'bg-blue-100' : 'bg-primary/10'
-                    }`}>
-                      <request.icon className={`w-5 h-5 ${
-                        request.status === 'PENDING' ? 'text-yellow-600' : 
-                        request.status === 'ASSIGNED' ? 'text-blue-600' : 'text-primary'
-                      }`} />
+              <div className="space-y-4">
+                {requests.length === 0 ? (
+                  <div className="bg-muted/20 border-2 border-dashed border-border rounded-3xl p-12 text-center">
+                    <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
+                       <FileText className="w-8 h-8 text-muted-foreground" />
                     </div>
-                    <h3 className="font-semibold text-foreground mb-1">{request.type}</h3>
-                    <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{request.description}</p>
-                    <div className="flex items-center justify-between">
-                      <span className={`text-xs font-semibold px-2 py-1 rounded-full ${
-                        request.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' : 
-                        request.status === 'ASSIGNED' ? 'bg-blue-100 text-blue-700' : 'bg-primary/10 text-primary'
-                      }`}>
-                        {request.status}
-                      </span>
-                      <span className="text-xs text-muted-foreground">{request.date}</span>
-                    </div>
+                    <p className="font-bold text-foreground">No active requests yet</p>
+                    <p className="text-sm text-muted-foreground mt-1">Post a request to find a campus volunteer.</p>
                   </div>
-                ))}
-              </div>
-
-              {/* Weekly Schedule */}
-              <div className="bg-card rounded-2xl p-6 border border-border">
-                <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-lg font-semibold text-foreground">Weekly Schedule</h2>
-                  <div className="flex bg-muted rounded-lg p-1">
-                    <button 
-                      onClick={() => setScheduleView('week')}
-                      className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                        scheduleView === 'week' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
-                      }`}
-                    >
-                      Week
-                    </button>
-                    <button 
-                      onClick={() => setScheduleView('month')}
-                      className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${
-                        scheduleView === 'month' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
-                      }`}
-                    >
-                      Month
-                    </button>
+                ) : (
+                  <div className="space-y-4">
+                    {requests.map((request) => (
+                      <VolunteerRequestCard 
+                        key={request.id} 
+                        request={request}
+                        onClick={() => handleOpenForm(request)}
+                      />
+                    ))}
                   </div>
-                </div>
-
-                <div className="space-y-4">
-                  {schedule.map((item, index) => (
-                    <div key={index} className="flex items-start gap-4 p-4 rounded-xl hover:bg-muted/50 transition-colors">
-                      <div className="text-center border-l-4 border-primary pl-3">
-                        <p className="text-xs text-muted-foreground font-medium">{item.day}</p>
-                        <p className="text-2xl font-bold text-foreground">{item.date}</p>
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-foreground">{item.title}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {item.time} • {item.location}
-                        </p>
-                      </div>
-                      {item.tag && (
-                        <span className={`text-xs font-medium px-3 py-1.5 rounded-full ${
-                          item.tag.includes('Assigned') ? 'bg-primary/10 text-primary' : 'bg-muted text-foreground'
-                        }`}>
-                          {item.tag}
-                        </span>
-                      )}
-                      <button className="p-2 hover:bg-muted rounded-lg transition-colors">
-                        <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
+                )}
               </div>
             </div>
 
-            {/* Right Column */}
-            <div className="space-y-6">
+            {/* Right Column / Quick Help */}
+            <div className="space-y-8">
               {/* Campus Location */}
-              <div className="bg-card rounded-2xl p-6 border border-border">
-                <h3 className="font-semibold text-foreground mb-4">Campus Location</h3>
-                <div className="aspect-video bg-muted rounded-xl mb-4 flex items-center justify-center overflow-hidden relative">
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/20 to-primary/5" />
-                  <div className="w-full h-full bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxkZWZzPjxwYXR0ZXJuIGlkPSJncmlkIiB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHBhdHRlcm5Vbml0cz0idXNlclNwYWNlT25Vc2UiPjxwYXRoIGQ9Ik0gNDAgMCBMIDAgMCAwIDQwIiBmaWxsPSJub25lIiBzdHJva2U9InJnYmEoMCwwLDAsMC4wNSkiIHN0cm9rZS13aWR0aD0iMSIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNncmlkKSIvPjwvc3ZnPg==')] opacity-50" />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-4 h-4 bg-primary rounded-full shadow-lg animate-pulse" />
-                  </div>
+              <div className="bg-card rounded-3xl p-8 border border-border shadow-soft overflow-hidden relative">
+                <h3 className="font-display font-black text-foreground uppercase tracking-wider mb-6">Current Location</h3>
+                <div className="aspect-square bg-muted rounded-2xl mb-6 flex items-center justify-center overflow-hidden relative group">
+                  <div className="absolute inset-0 bg-[url('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')] bg-cover bg-center grayscale group-hover:grayscale-0 transition-all duration-700" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
+                  <div className="z-10 w-6 h-6 bg-primary rounded-full shadow-lg animate-pulse ring-4 ring-primary/20" />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium text-foreground">Student Union Center</p>
-                    <p className="text-sm text-muted-foreground">Central Hub • 0.2 miles away</p>
+                    <p className="font-bold text-foreground">Mumbai Campus</p>
+                    <p className="text-xs text-muted-foreground font-medium">Main Admin Block • Center Zone</p>
                   </div>
-                  <button className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-                    <MapPin className="w-5 h-5 text-primary-foreground" />
+                  <button className="w-12 h-12 gradient-primary rounded-2xl shadow-soft flex items-center justify-center hover:scale-110 transition-transform">
+                    <MapPin className="w-6 h-6 text-primary-foreground" />
                   </button>
                 </div>
               </div>
 
-              {/* Need Help */}
-              <div className="bg-primary rounded-2xl p-6 text-primary-foreground">
-                <h3 className="font-semibold mb-2">Need Help?</h3>
-                <p className="text-sm opacity-90 mb-4">
-                  Our accessibility team is available 24/7 for urgent assistance.
-                </p>
-                <button className="w-full bg-card text-primary py-3 rounded-xl font-semibold hover:bg-card/90 transition-colors flex items-center justify-center gap-2">
-                  <Phone className="w-4 h-4" />
-                  Contact Support
-                </button>
+              {/* Need Help CTA */}
+              <div className="gradient-primary rounded-3xl p-8 text-primary-foreground shadow-elevated relative overflow-hidden">
+                <div className="relative z-10">
+                  <h3 className="font-display text-2xl font-black mb-3">24/7 Support</h3>
+                  <p className="text-sm font-medium opacity-90 mb-6 leading-relaxed">
+                    Experiencing any difficulty? Call the National Emergency Number.
+                  </p>
+                  <button className="w-full bg-white text-primary py-4 rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg hover:bg-opacity-90 transition-all active:scale-95 flex items-center justify-center gap-3">
+                    <Phone className="w-4 h-4" />
+                    Emergency Contact
+                  </button>
+                </div>
+                <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
               </div>
             </div>
           </div>
         </div>
       </main>
+
+      <AnimatePresence>
+        {showRequestForm && (
+          <VolunteerRequestForm 
+            onClose={() => { setShowRequestForm(false); setSelectedRequest(undefined); }} 
+            onSuccess={refreshRequests}
+            request={selectedRequest}
+            readOnly={!!selectedRequest}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

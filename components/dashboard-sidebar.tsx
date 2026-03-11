@@ -9,6 +9,7 @@ import {
   Clock, Users, Settings, Bell, Shield, Gift, Megaphone, CheckSquare
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { clearCurrentUser } from '@/lib/store'
 
 interface SidebarLink {
   href: string
@@ -26,11 +27,7 @@ interface DashboardSidebarProps {
 const studentLinks: SidebarLink[] = [
   { href: '/dashboard/student', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/student/requests', label: 'My Requests', icon: FileText },
-  { href: '/dashboard/student/status', label: 'Request Status', icon: BarChart3 },
-  { href: '/dashboard/student/schedule', label: 'Schedule', icon: Calendar },
-  { href: '/dashboard/student/location', label: 'Location', icon: MapPin },
-  { href: '/dashboard/student/history', label: 'Request History', icon: History },
-  { href: '/dashboard/student/accessibility', label: 'Accessibility', icon: Accessibility },
+  { href: '/dashboard/student/notifications', label: 'Notifications', icon: Bell },
   { href: '/dashboard/student/profile', label: 'Profile', icon: User },
 ]
 
@@ -38,9 +35,6 @@ const volunteerLinks: SidebarLink[] = [
   { href: '/dashboard/volunteer', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/volunteer/requests', label: 'Available Requests', icon: CheckSquare },
   { href: '/dashboard/volunteer/schedule', label: 'My Schedule', icon: Calendar },
-  { href: '/dashboard/volunteer/achievements', label: 'Achievements', icon: Award },
-  { href: '/dashboard/volunteer/stats', label: 'Points & Stats', icon: BarChart3 },
-  { href: '/dashboard/volunteer/leaderboard', label: 'Leaderboard', icon: Trophy },
   { href: '/dashboard/volunteer/profile', label: 'Profile', icon: User },
 ]
 
@@ -50,7 +44,6 @@ const adminLinks: SidebarLink[] = [
   { href: '/dashboard/admin/volunteers', label: 'Approve Volunteers', icon: Shield },
   { href: '/dashboard/admin/requests', label: 'Monitor Requests', icon: FileText },
   { href: '/dashboard/admin/disputes', label: 'Resolve Disputes', icon: Bell },
-  { href: '/dashboard/admin/rewards', label: 'Manage Rewards', icon: Gift },
   { href: '/dashboard/admin/analytics', label: 'Analytics', icon: BarChart3 },
   { href: '/dashboard/admin/announcements', label: 'Announcements', icon: Megaphone },
   { href: '/dashboard/admin/settings', label: 'Settings', icon: Settings },
@@ -141,7 +134,7 @@ export function DashboardSidebar({ type, userName, userId, userAvatar }: Dashboa
           </Link>
           <button
             onClick={() => {
-              localStorage.removeItem('user')
+              clearCurrentUser()
               window.location.href = '/'
             }}
             className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-destructive hover:bg-destructive/10 transition-colors w-full"

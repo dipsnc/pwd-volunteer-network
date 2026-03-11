@@ -56,6 +56,29 @@ export interface VolunteerUser {
   createdAt: string;
 }
 
+export interface VolunteerRequest {
+  id: string;
+  studentId: string;
+  studentName: string;
+  studentAvatar?: string;
+  title: string;
+  description: string;
+  date: string;
+  time: string;
+  urgency: 'low' | 'medium' | 'high';
+  tasks: string[];
+  categoryTags: string[];
+  location: {
+    lat: number;
+    lng: number;
+    address: string;
+  };
+  status: 'open' | 'assigned' | 'completed';
+  volunteerId?: string;
+  volunteerName?: string;
+  createdAt: string;
+}
+
 export interface Appointment {
   id: string;
   studentId: string;
@@ -74,6 +97,7 @@ export interface Appointment {
 
 type AppUser = StudentUser | VolunteerUser;
 
+const REQUESTS_KEY = 'pwd_volunteer_requests';
 const STUDENTS_KEY = 'pwd_students';
 const VOLUNTEERS_KEY = 'pwd_volunteers';
 const APPOINTMENTS_KEY = 'pwd_appointments';
@@ -140,6 +164,15 @@ export function saveAppointment(appt: Appointment) {
   const idx = all.findIndex(a => a.id === appt.id);
   if (idx >= 0) all[idx] = appt; else all.push(appt);
   setJSON(APPOINTMENTS_KEY, all);
+}
+
+// Volunteer Requests
+export function getVolunteerRequests(): VolunteerRequest[] { return getJSON(REQUESTS_KEY, []); }
+export function saveVolunteerRequest(req: VolunteerRequest) {
+  const all = getVolunteerRequests();
+  const idx = all.findIndex(r => r.id === req.id);
+  if (idx >= 0) all[idx] = req; else all.push(req);
+  setJSON(REQUESTS_KEY, all);
 }
 
 // Current user session
