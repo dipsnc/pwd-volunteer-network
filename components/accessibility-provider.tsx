@@ -16,6 +16,7 @@ interface AccessibilityContextType {
   audioCues: boolean
   setAudioCues: (enabled: boolean) => void
   playSound: (type: 'click' | 'success' | 'error' | 'navigate') => void
+  speak: (text: string) => void
 }
 
 const AccessibilityContext = createContext<AccessibilityContextType | undefined>(undefined)
@@ -69,8 +70,13 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
     
     let ctx = audioContext
     if (!ctx) {
-      ctx = new AudioContext()
-      setAudioContext(ctx)
+      try {
+        ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+        setAudioContext(ctx)
+      } catch (e) {
+        console.error('Web Audio API not supported')
+        return
+      }
     }
 
     const oscillator = ctx.createOscillator()
@@ -94,6 +100,27 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
     oscillator.stop(ctx.currentTime + 0.1)
   }
 
+  const speak = (text: string) => {
+    if (!audioCues || typeof window === 'undefined') return
+    
+    window.speechSynthesis.cancel()
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.rate = 0.9
+    utterance.pitch = 1
+    utterance.volume = 0.8
+    
+    // Pick a gentle voice if available
+    const voices = window.speechSynthesis.getVoices()
+    const preferred = voices.find(v => 
+      v.name.includes('Samantha') || 
+      v.name.includes('Google UK English Female') || 
+      v.name.includes('Female')
+    )
+    if (preferred) utterance.voice = preferred
+    
+    window.speechSynthesis.speak(utterance)
+  }
+
   return (
     <AccessibilityContext.Provider value={{
       textSize,
@@ -106,7 +133,8 @@ export function AccessibilityProvider({ children }: { children: ReactNode }) {
       setDarkMode,
       audioCues,
       setAudioCues,
-      playSound
+      playSound,
+      speak
     }}>
       {children}
     </AccessibilityContext.Provider>

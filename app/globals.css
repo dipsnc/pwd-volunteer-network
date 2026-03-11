@@ -1,110 +1,144 @@
-@import 'tailwindcss';
-@import 'tw-animate-css';
-@import 'shadcn/tailwind.css';
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #F9FBFA;
-  --foreground: #0A0B0A;
-  --card: #FFFFFF;
-  --card-foreground: #0A0B0A;
-  --popover: #FFFFFF;
-  --popover-foreground: #0A0B0A;
-  --primary: #53B295;
-  --primary-foreground: #FFFFFF;
-  --primary-light: #8DDDC4;
-  --secondary: #F1F5F9;
-  --secondary-foreground: #0A0B0A;
-  --muted: #F1F5F9;
-  --muted-foreground: #6B7280;
-  --accent: #61E4BB;
-  --accent-foreground: #0A0B0A;
-  --destructive: #EF4444;
-  --destructive-foreground: #FFFFFF;
-  --warning: #F59E0B;
-  --success: #10B981;
-  --border: #E5E7EB;
-  --input: #E5E7EB;
-  --ring: #53B295;
-  --chart-1: #53B295;
-  --chart-2: #8DDDC4;
-  --chart-3: #61E4BB;
-  --chart-4: #10B981;
-  --chart-5: #6B7280;
+  --background: #f9fbfa;
+  --foreground: #0a0b0a;
+  --card: #ffffff;
+  --card-foreground: #0a0b0a;
+  --popover: #ffffff;
+  --popover-foreground: #0a0b0a;
+  --primary: #53b295;
+  --primary-foreground: #ffffff;
+  --primary-light: #8dddc4;
+  --secondary: #f1f5f9;
+  --secondary-foreground: #0a0b0a;
+  --muted: #f1f5f9;
+  --muted-foreground: #6b7280;
+  --accent: #61e4bb;
+  --accent-foreground: #0a0b0a;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --warning: #f59e0b;
+  --success: #10b981;
+  --border: #e5e7eb;
+  --input: #e5e7eb;
+  --ring: #53b295;
+  --chart-1: #53b295;
+  --chart-2: #8dddc4;
+  --chart-3: #61e4bb;
+  --chart-4: #10b981;
+  --chart-5: #6b7280;
   --radius: 1rem;
-  --sidebar: #FFFFFF;
-  --sidebar-foreground: #0A0B0A;
-  --sidebar-primary: #53B295;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #E8F5F1;
-  --sidebar-accent-foreground: #53B295;
-  --sidebar-border: #E5E7EB;
-  --sidebar-ring: #53B295;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #0a0b0a;
+  --sidebar-primary: #53b295;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e8f5f1;
+  --sidebar-accent-foreground: #53b295;
+  --sidebar-border: #e5e7eb;
+  --sidebar-ring: #53b295;
   --font-size-multiplier: 1;
+  --font-display: "Plus Jakarta Sans", sans-serif;
+  --font-body: "Inter", sans-serif;
+  --gradient-hero: linear-gradient(
+    135deg,
+    hsl(200 30% 98%) 0%,
+    hsl(195 40% 94%) 50%,
+    hsl(220 35% 95%) 100%
+  );
+  --gradient-card: linear-gradient(
+    180deg,
+    hsl(0 0% 100%) 0%,
+    hsl(200 25% 98%) 100%
+  );
+  --gradient-primary: linear-gradient(
+    135deg,
+    hsl(205 70% 55%) 0%,
+    hsl(185 60% 50%) 100%
+  );
+  --gradient-calm: linear-gradient(
+    135deg,
+    hsl(200 30% 97%) 0%,
+    hsl(175 30% 95%) 50%,
+    hsl(230 25% 96%) 100%
+  );
+  --shadow-soft:
+    0 2px 15px -3px hsl(205 70% 55% / 0.08),
+    0 4px 6px -4px hsl(205 70% 55% / 0.05);
+  --shadow-card:
+    0 4px 25px -5px hsl(210 30% 15% / 0.06),
+    0 10px 10px -5px hsl(210 30% 15% / 0.02);
+  --shadow-elevated:
+    0 10px 40px -10px hsl(205 70% 55% / 0.15),
+    0 4px 6px -4px hsl(210 30% 15% / 0.05);
+  --shadow-glow: 0 0 20px hsl(205 70% 55% / 0.15);
 }
 
 .dark {
-  --background: #0A0B0A;
-  --foreground: #F9FBFA;
-  --card: #1A1B1A;
-  --card-foreground: #F9FBFA;
-  --popover: #1A1B1A;
-  --popover-foreground: #F9FBFA;
-  --primary: #53B295;
-  --primary-foreground: #FFFFFF;
-  --primary-light: #8DDDC4;
-  --secondary: #2A2B2A;
-  --secondary-foreground: #F9FBFA;
-  --muted: #2A2B2A;
-  --muted-foreground: #9CA3AF;
-  --accent: #61E4BB;
-  --accent-foreground: #0A0B0A;
-  --destructive: #EF4444;
-  --destructive-foreground: #FFFFFF;
-  --warning: #F59E0B;
-  --success: #10B981;
-  --border: #3A3B3A;
-  --input: #3A3B3A;
-  --ring: #53B295;
-  --chart-1: #53B295;
-  --chart-2: #8DDDC4;
-  --chart-3: #61E4BB;
-  --chart-4: #10B981;
-  --chart-5: #9CA3AF;
-  --sidebar: #1A1B1A;
-  --sidebar-foreground: #F9FBFA;
-  --sidebar-primary: #53B295;
-  --sidebar-primary-foreground: #FFFFFF;
-  --sidebar-accent: #2A3A34;
-  --sidebar-accent-foreground: #8DDDC4;
-  --sidebar-border: #3A3B3A;
-  --sidebar-ring: #53B295;
+  --background: #0a0b0a;
+  --foreground: #f9fbfa;
+  --card: #1a1b1a;
+  --card-foreground: #f9fbfa;
+  --popover: #1a1b1a;
+  --popover-foreground: #f9fbfa;
+  --primary: #53b295;
+  --primary-foreground: #ffffff;
+  --primary-light: #8dddc4;
+  --secondary: #2a2b2a;
+  --secondary-foreground: #f9fbfa;
+  --muted: #2a2b2a;
+  --muted-foreground: #9ca3af;
+  --accent: #61e4bb;
+  --accent-foreground: #0a0b0a;
+  --destructive: #ef4444;
+  --destructive-foreground: #ffffff;
+  --warning: #f59e0b;
+  --success: #10b981;
+  --border: #3a3b3a;
+  --input: #3a3b3a;
+  --ring: #53b295;
+  --chart-1: #53b295;
+  --chart-2: #8dddc4;
+  --chart-3: #61e4bb;
+  --chart-4: #10b981;
+  --chart-5: #9ca3af;
+  --sidebar: #1a1b1a;
+  --sidebar-foreground: #f9fbfa;
+  --sidebar-primary: #53b295;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2a3a34;
+  --sidebar-accent-foreground: #8dddc4;
+  --sidebar-border: #3a3b3a;
+  --sidebar-ring: #53b295;
 }
 
 .high-contrast {
   --background: #000000;
-  --foreground: #FFFFFF;
+  --foreground: #ffffff;
   --card: #000000;
-  --card-foreground: #FFFFFF;
-  --primary: #00FFAA;
+  --card-foreground: #ffffff;
+  --primary: #00ffaa;
   --primary-foreground: #000000;
-  --muted-foreground: #FFFFFF;
-  --border: #FFFFFF;
+  --muted-foreground: #ffffff;
+  --border: #ffffff;
 }
 
 .colorblind {
-  --primary: #0077BB;
-  --primary-light: #66CCEE;
-  --accent: #EE7733;
+  --primary: #0077bb;
+  --primary-light: #66ccee;
+  --accent: #ee7733;
   --success: #009988;
-  --warning: #EE7733;
-  --destructive: #CC3311;
+  --warning: #ee7733;
+  --destructive: #cc3311;
 }
 
 @theme inline {
-  --font-sans: var(--font-dm-sans), 'DM Sans', system-ui, sans-serif;
-  --font-mono: 'Geist Mono', 'Geist Mono Fallback';
+  --font-sans: var(--font-dm-sans), "DM Sans", system-ui, sans-serif;
+  --font-mono: "Geist Mono", "Geist Mono Fallback";
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -149,5 +183,32 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .gradient-hero {
+    background: var(--gradient-hero);
+  }
+  .gradient-card {
+    background: var(--gradient-card);
+  }
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+  .gradient-calm {
+    background: var(--gradient-calm);
+  }
+  .shadow-soft {
+    box-shadow: var(--shadow-soft);
+  }
+  .shadow-card {
+    box-shadow: var(--shadow-card);
+  }
+  .shadow-elevated {
+    box-shadow: var(--shadow-elevated);
+  }
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
   }
 }

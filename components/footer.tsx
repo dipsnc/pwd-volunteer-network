@@ -1,37 +1,54 @@
+"use client";
+
 import Link from 'next/link'
+import { Heart, Users } from 'lucide-react'
+import { useAccessibility } from './accessibility-provider'
 
 export function Footer() {
+  const { speak } = useAccessibility()
+
   return (
-    <footer className="bg-foreground text-background py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
-              <svg className="w-5 h-5 text-primary-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                <circle cx="9" cy="7" r="4" />
-                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-              </svg>
+    <footer className="bg-[#1a202c] text-white py-16 px-6 border-t border-white/5">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex flex-col md:flex-row items-center justify-between gap-10">
+          {/* Logo & Brand */}
+          <div className="flex items-center gap-3 group transition-transform hover:scale-105">
+            <div className="w-12 h-12 bg-[#4fd1c5] rounded-2xl flex items-center justify-center shadow-lg transform -rotate-3 group-hover:rotate-0 transition-transform">
+              <Users size={28} className="text-[#1a202c]" />
             </div>
-            <span className="font-bold">PWD Volunteer Network</span>
+            <div className="flex flex-col">
+              <span className="text-xl font-black tracking-tighter leading-none">PWD NETWORK</span>
+              <span className="text-[10px] font-bold text-[#4fd1c5] tracking-[0.2em] uppercase mt-1">Volunteer Network</span>
+            </div>
           </div>
 
-          <div className="flex items-center gap-6 text-sm">
-            <Link href="/privacy" className="hover:text-primary transition-colors">
-              Privacy Policy
-            </Link>
-            <Link href="/terms" className="hover:text-primary transition-colors">
-              Terms of Service
-            </Link>
-            <Link href="/contact" className="hover:text-primary transition-colors">
-              Contact Us
-            </Link>
-          </div>
+          {/* Links */}
+          <nav className="flex flex-wrap justify-center gap-x-10 gap-y-4 text-sm font-bold text-gray-400">
+            {[
+              { label: 'Privacy Policy', path: '#' },
+              { label: 'Terms of Service', path: '#' },
+              { label: 'Contact Us', path: '#' },
+              { label: 'Developer Portal', path: '/dev' }
+            ].map((link) => (
+              <Link 
+                key={link.label}
+                href={link.path} 
+                className="hover:text-[#4fd1c5] transition-all relative group"
+                onClick={() => speak("Navigating to " + link.label)}
+              >
+                {link.label}
+                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-[#4fd1c5] transition-all group-hover:w-full" />
+              </Link>
+            ))}
+          </nav>
 
-          <p className="text-sm text-muted-foreground">
-            © 2024 PWD Volunteer Network. All rights reserved.
-          </p>
+          {/* Copyright */}
+          <div className="text-gray-500 text-xs font-bold text-center md:text-right">
+            <p>© 2024 PWD Volunteer Network. All rights reserved.</p>
+            <p className="mt-1 flex items-center justify-center md:justify-end gap-1.5 opacity-50">
+              Made with <Heart size={12} className="text-[#ef4444] fill-current" /> for the community
+            </p>
+          </div>
         </div>
       </div>
     </footer>

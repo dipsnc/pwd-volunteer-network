@@ -33,6 +33,8 @@ export const metadata: Metadata = {
   },
 }
 
+import { Toaster } from 'sonner'
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -44,6 +46,7 @@ export default function RootLayout({
         <AccessibilityProvider>
           {children}
           <AccessibilityWidget />
+          <Toaster position="top-center" richColors />
         </AccessibilityProvider>
         <Analytics />
       </body>
