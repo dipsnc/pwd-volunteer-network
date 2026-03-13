@@ -10,7 +10,7 @@ import { saveStudent, setCurrentUser } from "@/lib/store";
 import { toast } from "sonner";
 import { auth, db } from "@/lib/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
 
 const DISABILITY_TYPES = [
   "Visual Impairment", "Hearing Impairment", "Locomotor Disability",
@@ -125,6 +125,17 @@ export default function StudentRegisterPage() {
 
     setLoading(true);
     try {
+      // 0. Check if username is unique
+      const q = query(collection(db, "students"), where("username", "==", username));
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        toast.error("Username Taken", {
+          description: "This username is already in use. Please choose another one.",
+        });
+        setLoading(false);
+        return;
+      }
+
       // Create Firebase user
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;

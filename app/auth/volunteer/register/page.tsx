@@ -10,7 +10,7 @@ import {  } from "@/lib/store";
 import { toast } from "sonner";
 import { auth, db } from "@/lib/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { doc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
 
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
@@ -96,6 +96,17 @@ export default function VolunteerRegisterPage() {
 
     setLoading(true);
     try {
+      // 0. Check if username is unique
+      const q = query(collection(db, "volunteers"), where("username", "==", username));
+      const querySnapshot = await getDocs(q);
+      if (!querySnapshot.empty) {
+        toast.error("Username Taken", {
+          description: "This username is already in use. Please choose another one.",
+        });
+        setLoading(false);
+        return;
+      }
+
       // 1. Create User in Firebase Auth
       // Note: We use the email and password provided by the user
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);

@@ -42,6 +42,28 @@ export default function UniversalProfilePage() {
   const isOwner = firebaseUser?.uid === userId
 
   useEffect(() => {
+    const fetchViewerData = async () => {
+      if (!firebaseUser) return
+      try {
+        const studentRef = doc(db, "students", firebaseUser.uid)
+        const studentSnap = await getDoc(studentRef)
+        if (studentSnap.exists()) {
+          setViewerData({ ...studentSnap.data(), id: firebaseUser.uid, type: 'student' })
+        } else {
+          const volunteerRef = doc(db, "volunteers", firebaseUser.uid)
+          const volunteerSnap = await getDoc(volunteerRef)
+          if (volunteerSnap.exists()) {
+            setViewerData({ ...volunteerSnap.data(), id: firebaseUser.uid, type: 'volunteer' })
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching viewer data:", error)
+      }
+    }
+    if (firebaseUser) fetchViewerData()
+  }, [firebaseUser])
+
+  useEffect(() => {
     const fetchProfile = async () => {
       try {
         // Try students collection
@@ -174,9 +196,9 @@ export default function UniversalProfilePage() {
   return (
     <div className="min-h-screen bg-background">
       <DashboardSidebar 
-        type={firebaseUser ? (isStudent ? 'student' : 'volunteer') : 'volunteer'} 
-        userName={profile.fullName} 
-        userId={firebaseUser?.uid}
+        type={viewerData?.type || 'volunteer'} 
+        userName={viewerData?.fullName || "Loading..."} 
+        userId={viewerData?.id || firebaseUser?.uid}
       />
 
       <main className="lg:ml-64 min-h-screen pb-12">

@@ -1,46 +1,35 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { DashboardSidebar } from '@/components/dashboard-sidebar'
-import { Search, Bell, Settings, Filter, FileText, Home, FileWarning, CheckCircle, Clock, XCircle } from 'lucide-react'
+import { Search, Bell, Settings, Filter, FileText, Home, FileWarning, CheckCircle, Clock, XCircle, Plus } from 'lucide-react'
 import { useAuth } from '@/components/auth-provider'
 import { db } from '@/lib/firebase'
-import { doc, getDoc } from 'firebase/firestore'
-import { useEffect } from 'react'
+import { doc, getDoc, collection, query, where, onSnapshot, orderBy } from 'firebase/firestore'
+import VolunteerRequestCard from '@/components/volunteer-request-card'
+import { type VolunteerRequest } from '@/lib/store'
+import { AnimatePresence, motion } from 'framer-motion'
+import ApplicantReviewModal from '@/components/applicant-review-modal'
 
-type FilterType = 'all' | 'pending' | 'assigned' | 'in-progress' | 'completed' | 'cancelled'
+type FilterType = 'all' | 'open' | 'assigned' | 'completed' | 'cancelled'
 
 const filters: { id: FilterType; label: string; icon: React.ElementType }[] = [
-  { id: 'all', label: 'All', icon: FileText },
-  { id: 'pending', label: 'Pending', icon: Clock },
+  { id: 'all', label: 'All Requests', icon: FileText },
+  { id: 'open', label: 'Open', icon: Clock },
   { id: 'assigned', label: 'Assigned', icon: CheckCircle },
-  { id: 'in-progress', label: 'In Progress', icon: FileWarning },
   { id: 'completed', label: 'Completed', icon: CheckCircle },
   { id: 'cancelled', label: 'Cancelled', icon: XCircle },
 ]
-
-const allRequests = [
-  { id: 1, type: 'Exam Extension', description: 'CS101 - Midterm exam extra time request.', status: 'pending', date: '2 days ago', icon: FileText },
-  { id: 2, type: 'Lab Aide', description: 'Chemistry Lab 4 assistance for wheelchair access.', status: 'assigned', date: 'Tomorrow, 10:00', icon: Home },
-  { id: 3, type: 'Resource Access', description: 'Digital textbook accessibility format request.', status: 'in-progress', date: '5 days ago', icon: FileWarning },
-  { id: 4, type: 'Note-Taking Support', description: 'Advanced Mathematics lecture notes assistance.', status: 'completed', date: 'Oct 15, 2023', icon: FileText },
-  { id: 5, type: 'Mobility Assistance', description: 'Campus tour assistance for orientation week.', status: 'completed', date: 'Oct 10, 2023', icon: Home },
-  { id: 6, type: 'Writing Support', description: 'Essay proofreading and formatting help.', status: 'cancelled', date: 'Oct 8, 2023', icon: FileText },
-]
-
-const statusColors: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
-  assigned: 'bg-blue-100 text-blue-700',
-  'in-progress': 'bg-primary/10 text-primary',
-  completed: 'bg-green-100 text-green-700',
-  cancelled: 'bg-red-100 text-red-700',
-}
 
 export default function StudentRequestsPage() {
   const { user: firebaseUser } = useAuth()
   const [userData, setUserData] = useState<any>(null)
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
+  const [requests, setRequests] = useState<VolunteerRequest[]>([])
+  const [applicantCounts, setApplicantCounts] = useState<Record<string, number>>({})
+  const [loading, setLoading] = useState(true)
   const [mounted, setMounted] = useState(false)
+  const [selectedRequestForReview, setSelectedRequestForReview] = useState<VolunteerRequest | null>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -53,7 +42,7 @@ export default function StudentRequestsPage() {
           const docRef = doc(db, "students", firebaseUser.uid);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
-            setUserData(docSnap.data());
+            setUserData({ ...docSnap.data(), id: firebaseUser.uid });
           }
         } catch (error) {
           console.error("Error fetching user:", error);
@@ -63,14 +52,52 @@ export default function StudentRequestsPage() {
     if (mounted) fetchUser();
   }, [firebaseUser, mounted])
 
+  useEffect(() => {
+    if (!userData || !mounted) return;
+
+    const q = query(
+      collection(db, "requests"),
+      where("studentId", "==", userData.uid || userData.id),
+      orderBy("createdAt", "desc")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const dbRequests = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as VolunteerRequest[];
+      setRequests(dbRequests);
+      setLoading(false);
+    });
+
+    const qApps = query(
+      collection(db, "applications"),
+      where("studentId", "==", userData.uid || userData.id)
+    );
+
+    const unsubscribeApps = onSnapshot(qApps, (snapshot) => {
+      const counts: Record<string, number> = {};
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        counts[data.requestId] = (counts[data.requestId] || 0) + 1;
+      });
+      setApplicantCounts(counts);
+    });
+
+    return () => {
+      unsubscribe();
+      unsubscribeApps();
+    };
+  }, [userData?.id, userData?.uid, mounted]);
+
   if (!mounted) return null
 
   const filteredRequests = activeFilter === 'all' 
-    ? allRequests 
-    : allRequests.filter(r => r.status === activeFilter)
+    ? requests 
+    : requests.filter(r => r.status === activeFilter)
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background text-foreground">
       <DashboardSidebar type="student" userName={userData?.fullName || "Student"} userId={firebaseUser?.uid} />
       
       <main className="lg:ml-64 min-h-screen">
@@ -79,10 +106,10 @@ export default function StudentRequestsPage() {
           <div className="flex items-center justify-between">
             <div className="lg:ml-0 ml-12">
               <h1 className="text-2xl font-bold text-foreground">My Requests</h1>
-              <p className="text-muted-foreground">View and manage all your assistance requests</p>
+              <p className="text-muted-foreground">Manage your help postings and volunteer applications.</p>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="hidden md:flex items-center gap-2 bg-muted rounded-xl px-4 py-2">
+            <div className="flex items-center gap-6">
+              <div className="hidden md:flex items-center gap-2 bg-muted/50 rounded-2xl px-5 py-2.5 border border-border/50">
                 <Search className="w-4 h-4 text-muted-foreground" />
                 <input 
                   type="text" 
@@ -100,75 +127,106 @@ export default function StudentRequestsPage() {
           </div>
         </header>
 
-        <div className="p-6 space-y-6">
-          {/* Filter Bar */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2">
-            {filters.map((filter) => (
-              <button
-                key={filter.id}
-                onClick={() => setActiveFilter(filter.id)}
-                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-colors ${
-                  activeFilter === filter.id
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-card border border-border text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <filter.icon className="w-4 h-4" />
-                {filter.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Requests Grid */}
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {filteredRequests.map((request) => (
-              <div key={request.id} className="bg-card rounded-2xl p-5 border border-border hover:shadow-md transition-shadow">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${
-                  request.status === 'pending' ? 'bg-yellow-100' : 
-                  request.status === 'assigned' ? 'bg-blue-100' : 
-                  request.status === 'completed' ? 'bg-green-100' :
-                  request.status === 'cancelled' ? 'bg-red-100' : 'bg-primary/10'
-                }`}>
-                  <request.icon className={`w-5 h-5 ${
-                    request.status === 'pending' ? 'text-yellow-600' : 
-                    request.status === 'assigned' ? 'text-blue-600' : 
-                    request.status === 'completed' ? 'text-green-600' :
-                    request.status === 'cancelled' ? 'text-red-600' : 'text-primary'
-                  }`} />
-                </div>
-                <h3 className="font-semibold text-foreground mb-1">{request.type}</h3>
-                <p className="text-sm text-muted-foreground mb-4">{request.description}</p>
-                <div className="flex items-center justify-between">
-                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full uppercase ${statusColors[request.status]}`}>
-                    {request.status.replace('-', ' ')}
-                  </span>
-                  <span className="text-xs text-muted-foreground">{request.date}</span>
-                </div>
-                <div className="mt-4 pt-4 border-t border-border flex gap-2">
-                  <button className="flex-1 text-sm font-medium text-primary hover:underline">
-                    View Details
-                  </button>
-                  {request.status === 'pending' && (
-                    <button className="flex-1 text-sm font-medium text-destructive hover:underline">
-                      Cancel
-                    </button>
-                  )}
-                </div>
+        <div className="p-8 space-y-8">
+          {/* Quick Stats / Feedback */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-card p-6 rounded-3xl border border-border shadow-soft flex items-center gap-6">
+              <div className="w-14 h-14 rounded-2xl bg-primary/5 flex items-center justify-center border border-primary/10">
+                <FileText className="w-7 h-7 text-primary" />
               </div>
-            ))}
-          </div>
-
-          {filteredRequests.length === 0 && (
-            <div className="text-center py-12">
-              <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mx-auto mb-4">
-                <FileText className="w-8 h-8 text-muted-foreground" />
+              <div>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Total</p>
+                <h3 className="text-2xl font-bold text-foreground">{requests.length} Requests</h3>
               </div>
-              <h3 className="text-lg font-semibold text-foreground mb-2">No requests found</h3>
-              <p className="text-muted-foreground">There are no requests matching this filter.</p>
             </div>
-          )}
+            <div className="bg-card p-6 rounded-3xl border border-border shadow-soft flex items-center gap-6">
+              <div className="w-14 h-14 rounded-2xl bg-orange-500/5 flex items-center justify-center border border-orange-500/10">
+                <Clock className="w-7 h-7 text-orange-500" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Open</p>
+                <h3 className="text-2xl font-bold text-foreground">{requests.filter(r => r.status === 'open').length} Active</h3>
+              </div>
+            </div>
+            <div className="bg-card p-6 rounded-3xl border border-border shadow-soft flex items-center gap-6">
+              <div className="w-14 h-14 rounded-2xl bg-green-500/5 flex items-center justify-center border border-green-500/10">
+                <CheckCircle className="w-7 h-7 text-green-500" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Filled</p>
+                <h3 className="text-2xl font-bold text-foreground">{requests.filter(r => r.status === 'assigned' || r.status === 'completed').length} Successful</h3>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-card rounded-[32px] border border-border shadow-soft p-8 space-y-8">
+            {/* Filter Bar */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 scrollbar-hide">
+                {filters.map((filter) => (
+                  <button
+                    key={filter.id}
+                    onClick={() => setActiveFilter(filter.id)}
+                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-xs font-bold whitespace-nowrap transition-all ${
+                      activeFilter === filter.id
+                        ? 'bg-primary text-primary-foreground shadow-soft'
+                        : 'bg-muted/30 border border-border/50 text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <filter.icon className="w-3.5 h-3.5" />
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center gap-3">
+                 <button className="flex items-center gap-2 px-5 py-3 bg-muted/30 rounded-2xl border border-border/50 text-xs font-bold text-muted-foreground hover:text-foreground transition-all">
+                   <Filter className="w-3.5 h-3.5" /> Sort By: Newest
+                 </button>
+              </div>
+            </div>
+
+            {/* Requests Grid */}
+            <div className="space-y-6">
+              {loading ? (
+                <div className="space-y-4">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="h-40 w-full bg-muted rounded-3xl animate-pulse" />
+                  ))}
+                </div>
+              ) : filteredRequests.length === 0 ? (
+                <div className="text-center py-20 bg-muted/10 rounded-[40px] border-2 border-dashed border-border/50">
+                  <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-6">
+                    <FileText className="w-10 h-10 text-muted-foreground/40" />
+                  </div>
+                  <h3 className="text-xl font-display font-bold text-foreground mb-2">No Requests Found</h3>
+                  <p className="text-muted-foreground max-w-xs mx-auto font-medium">There are no requests matching your current filter.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 gap-6">
+                  {filteredRequests.map((request) => (
+                    <VolunteerRequestCard 
+                      key={request.id} 
+                      request={request}
+                      isStudentView={true}
+                      applicantCount={applicantCounts[request.id] || 0}
+                      onClick={() => setSelectedRequestForReview(request)}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </main>
+
+      <AnimatePresence>
+        {selectedRequestForReview && (
+          <ApplicantReviewModal 
+            request={selectedRequestForReview} 
+            onClose={() => setSelectedRequestForReview(null)} 
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

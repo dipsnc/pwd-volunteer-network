@@ -6,7 +6,8 @@ import { useState } from 'react'
 import { 
   LayoutDashboard, FileText, BarChart3, Calendar, MapPin, History, 
   Accessibility, User, ArrowLeft, LogOut, Menu, X, Award, Trophy, 
-  Clock, Users, Settings, Bell, Shield, Gift, Megaphone, CheckSquare
+  Clock, Users, Settings, Bell, Shield, Gift, Megaphone, CheckSquare,
+  Home
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { clearCurrentUser } from '@/lib/store'
@@ -133,14 +134,7 @@ export function DashboardSidebar({ type, userName, userId, userAvatar }: Dashboa
         </nav>
 
         {/* Bottom Actions */}
-        <div className="p-4 border-t border-border space-y-2">
-          <Link
-            href="/"
-            className="flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            Back
-          </Link>
+        <div className="border-t border-border space-y-2">
           <button
             onClick={async () => {
               await logout()

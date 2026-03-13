@@ -6,13 +6,16 @@ import { type VolunteerRequest } from '@/lib/store'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
+import Link from 'next/link'
 
 interface VolunteerRequestCardProps {
   request: VolunteerRequest
   onClick: () => void
+  applicantCount?: number
+  isStudentView?: boolean
 }
 
-export default function VolunteerRequestCard({ request, onClick }: VolunteerRequestCardProps) {
+export default function VolunteerRequestCard({ request, onClick, applicantCount = 0, isStudentView = false }: VolunteerRequestCardProps) {
   const urgencyStyles = {
     low: "bg-green-500/10 text-green-500 border-green-500/20",
     medium: "bg-orange-500/10 text-orange-500 border-orange-500/20",
@@ -81,17 +84,43 @@ export default function VolunteerRequestCard({ request, onClick }: VolunteerRequ
 
           <div className="pt-4 border-t border-border/50 flex items-center justify-between">
              <div className="flex items-center gap-3">
-                <Avatar className="w-8 h-8 border-2 border-background shadow-soft shrink-0">
-                   <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-bold">
-                     {request.studentName.substring(0,2).toUpperCase()}
-                   </AvatarFallback>
-                </Avatar>
-                <div className="leading-tight">
-                  <p className="text-xs font-bold text-foreground">{request.studentName}</p>
-                  <p className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
-                    <MapPin size={10} /> {request.location.address.split(',')[0]}
-                  </p>
-                </div>
+                {isStudentView && applicantCount > 0 ? (
+                  <Link 
+                    href="/dashboard/student/requests" 
+                    className="flex -space-x-2 overflow-hidden hover:opacity-80 transition-opacity"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    {[...Array(Math.min(applicantCount, 3))].map((_, i) => (
+                      <div key={i} className="w-8 h-8 rounded-full border-2 border-background bg-primary/10 flex items-center justify-center text-[8px] font-black text-primary">
+                        {String.fromCharCode(65 + i)}
+                      </div>
+                    ))}
+                    {applicantCount > 3 && (
+                      <div className="w-8 h-8 rounded-full border-2 border-background bg-muted flex items-center justify-center text-[8px] font-black text-muted-foreground">
+                        +{applicantCount - 3}
+                      </div>
+                    )}
+                    <div className="flex items-center ml-4">
+                      <p className="text-xs font-bold text-primary hover:underline transition-all">
+                        {applicantCount} {applicantCount === 1 ? 'person has' : 'people have'} applied
+                      </p>
+                    </div>
+                  </Link>
+                ) : (
+                  <>
+                    <Avatar className="w-8 h-8 border-2 border-background shadow-soft shrink-0">
+                       <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-bold">
+                         {request.studentName.substring(0,2).toUpperCase()}
+                       </AvatarFallback>
+                    </Avatar>
+                    <div className="leading-tight">
+                      <p className="text-xs font-bold text-foreground">{request.studentName}</p>
+                      <p className="text-[10px] text-muted-foreground font-medium flex items-center gap-1">
+                        <MapPin size={10} /> {request.location.address.split(',')[0]}
+                      </p>
+                    </div>
+                  </>
+                )}
              </div>
             
             <div className="flex items-center gap-4">

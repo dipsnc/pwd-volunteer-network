@@ -10,7 +10,7 @@ import { setCurrentUser } from "@/lib/store";
 import { toast } from "sonner";
 import { auth, db } from "@/lib/firebase";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { useAuth } from "@/components/auth-provider";
 
 export default function VolunteerLoginPage() {
@@ -29,12 +29,31 @@ export default function VolunteerLoginPage() {
     setLoading(true);
 
     try {
-      // 1. Sign in with Firebase Auth
-      // If identifier is email, use it directly. Otherwise, we assume it's email (as per Firebase)
-      const userCredential = await signInWithEmailAndPassword(auth, identifier, password);
+      let loginEmail = identifier;
+
+      // 1. Lookup email if identifier is not an email
+      if (!identifier.includes("@")) {
+        const field = loginMethod === "phone" ? "phone" : "username";
+        const q = query(collection(db, "volunteers"), where(field, "==", identifier));
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+          toast.error("User not found", {
+            description: `No volunteer found with that ${field}.`,
+          });
+          setLoading(false);
+          return;
+        }
+        
+        const userData = querySnapshot.docs[0].data();
+        loginEmail = userData.email;
+      }
+
+      // 2. Sign in with Firebase Auth
+      const userCredential = await signInWithEmailAndPassword(auth, loginEmail, password);
       const firebaseUser = userCredential.user;
 
-      // 2. Fetch volunteer data from Firestore
+      // 3. Fetch volunteer data from Firestore
       const docRef = doc(db, "volunteers", firebaseUser.uid);
       const docSnap = await getDoc(docRef);
 
@@ -74,8 +93,16 @@ export default function VolunteerLoginPage() {
       router.push("/dashboard/volunteer");
     } catch (error: any) {
       console.error("Login error:", error);
-      toast.error("Invalid credentials", {
-        description: "Please check your email and password.",
+      let message = "Please check your login details and try again.";
+      
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        message = "Incorrect email/username or password.";
+      } else if (error.code === 'auth/too-many-requests') {
+        message = "Too many failed attempts. Please try again later.";
+      }
+
+      toast.error("Login Failed", {
+        description: message,
       });
       speak("Login failed.");
     } finally {
@@ -154,34 +181,27 @@ export default function VolunteerLoginPage() {
             <div className="flex rounded-xl bg-muted p-1 gap-1">
               <button 
                 onClick={() => { setLoginMethod("email"); speak("Email method selected"); }} 
-                className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${loginMethod === "email" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
-                aria-label="Login with Email"
+                className='flex-1 py-2.5 rounded-lg text-sm font-medium transition-all'
+                aria-label="Login with Email or Username"
               >
-                <Mail size={14} className="inline mr-1.5" />Email
-              </button>
-              <button 
-                onClick={() => { setLoginMethod("phone"); speak("Phone method selected"); }} 
-                className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${loginMethod === "phone" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
-                aria-label="Login with Phone"
-              >
-                <Phone size={14} className="inline mr-1.5" />Phone
+                <Mail size={14} className="inline mr-1.5" /> Email / Username
               </button>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label htmlFor="identifier" className="text-sm font-medium text-foreground mb-1.5 block">{loginMethod === "email" ? "Email / Username" : "Phone"}</label>
+                <label htmlFor="identifier" className="text-sm font-medium text-foreground mb-1.5 block">Email / Username</label>
                 <div className="relative">
-                  {loginMethod === "email" ? <Mail size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" /> : <Phone size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />}
+                  <Mail size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <input 
                     id="identifier"
-                    type={loginMethod === "phone" ? "tel" : "text"} 
+                    type="text" 
                     value={identifier} 
                     onChange={e => setIdentifier(e.target.value)}
                     className="w-full pl-10 pr-4 py-3 rounded-xl border-2 border-border bg-background text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none transition-colors"
-                    placeholder={loginMethod === "email" ? "Email or username" : "+91 98765 43210"} 
+                    placeholder= "Email or username" 
                     required 
-                    aria-label={loginMethod === "email" ? "Enter email or username" : "Enter phone number"}
+                    aria-label="Enter email or username"
                   />
                 </div>
               </div>

@@ -10,7 +10,7 @@ import { setCurrentUser } from "@/lib/store";
 import { toast } from "sonner";
 import { auth, db } from "@/lib/firebase";
 import { signInWithEmailAndPassword } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { useAuth } from "@/components/auth-provider";
 
 export default function StudentLoginPage() {
@@ -27,11 +27,31 @@ export default function StudentLoginPage() {
     e.preventDefault();
     setLoading(true);
     try {
-      // Firebase Sign In
-      const userCredential = await signInWithEmailAndPassword(auth, identifier, password);
+      let loginEmail = identifier;
+
+      // 1. Lookup email if identifier is not an email
+      if (!identifier.includes("@")) {
+        const field = loginMethod === "phone" ? "phone" : "username";
+        const q = query(collection(db, "students"), where(field, "==", identifier));
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+          toast.error("User not found", {
+            description: `No student found with that ${field}.`,
+          });
+          setLoading(false);
+          return;
+        }
+        
+        const userData = querySnapshot.docs[0].data();
+        loginEmail = userData.email;
+      }
+
+      // 2. Firebase Sign In
+      const userCredential = await signInWithEmailAndPassword(auth, loginEmail, password);
       const firebaseUser = userCredential.user;
 
-      // Fetch user data from Firestore
+      // 3. Fetch user data from Firestore
       const userDoc = await getDoc(doc(db, "students", firebaseUser.uid));
       
       if (userDoc.exists()) {
@@ -45,19 +65,24 @@ export default function StudentLoginPage() {
         speak("Welcome back " + userData.fullName);
         router.push("/dashboard/student");
       } else {
-        // User exists in Auth but not in Firestore 'students'
-        // This could happen if they haven't finished onboarding or are a volunteer
         toast.error("Profile not found", {
           description: "Please ensure you have completed your student registration.",
         });
-        // Optionally redirect to registration or welcome?
       }
     } catch (error: any) {
       console.error("Login error:", error);
-      toast.error("Invalid credentials", {
-        description: error.message || "Please check your login details and try again.",
+      let message = "Please check your login details and try again.";
+      
+      if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+        message = "Incorrect email/username or password.";
+      } else if (error.code === 'auth/too-many-requests') {
+        message = "Too many failed attempts. Please try again later.";
+      }
+
+      toast.error("Login Failed", {
+        description: message,
       });
-      speak("Login failed. Please check your credentials.");
+      speak("Login failed.");
     } finally {
       setLoading(false);
     }
@@ -135,18 +160,12 @@ export default function StudentLoginPage() {
             <div className="flex rounded-xl bg-muted p-1 gap-1">
               <button 
                 onClick={() => { setLoginMethod("email"); speak("Email method selected"); }} 
-                className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${loginMethod === "email" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
+                className='flex-1 py-2.5 rounded-lg text-sm font-medium transition-all'
                 aria-label="Login with Email or Username"
               >
                 <Mail size={14} className="inline mr-1.5" /> Email / Username
               </button>
-              <button 
-                onClick={() => { setLoginMethod("phone"); speak("Phone method selected"); }} 
-                className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all ${loginMethod === "phone" ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
-                aria-label="Login with Phone Number"
-              >
-                <Phone size={14} className="inline mr-1.5" /> Phone
-              </button>
+              
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">

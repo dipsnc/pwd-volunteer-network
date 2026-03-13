@@ -59,6 +59,7 @@ export default function StudentDashboardPage() {
   const [selectedRequest, setSelectedRequest] = useState<VolunteerRequest | undefined>(undefined)
   const [selectedStatusRequestId, setSelectedStatusRequestId] = useState<string | null>(null)
   const [requests, setRequests] = useState<VolunteerRequest[]>([])
+  const [applicantCounts, setApplicantCounts] = useState<Record<string, number>>({})
   const { user: firebaseUser, loading: authLoading } = useAuth()
   const [userData, setUserData] = useState<any>(null)
   const [mounted, setMounted] = useState(false)
@@ -108,11 +109,28 @@ export default function StudentDashboardPage() {
       }
     }, (error) => {
       console.error("Error fetching requests:", error);
-      // Fallback to mock data if there's an error (e.g. index not created yet)
       setRequests(MOCK_REQUESTS);
     });
 
-    return () => unsubscribe();
+    // Listen to applications to count them
+    const qApps = query(
+      collection(db, "applications"),
+      where("studentId", "==", userData.uid || userData.id)
+    );
+
+    const unsubscribeApps = onSnapshot(qApps, (snapshot) => {
+      const counts: Record<string, number> = {};
+      snapshot.docs.forEach(doc => {
+        const data = doc.data();
+        counts[data.requestId] = (counts[data.requestId] || 0) + 1;
+      });
+      setApplicantCounts(counts);
+    });
+
+    return () => {
+      unsubscribe();
+      unsubscribeApps();
+    };
   }, [userData?.id, userData?.uid, mounted]);
 
   const refreshRequests = () => {
@@ -289,6 +307,8 @@ const MiniMap = dynamic(() => import('@/components/minimap'), {
                         key={request.id} 
                         request={request}
                         onClick={() => handleOpenForm(request)}
+                        isStudentView={true}
+                        applicantCount={applicantCounts[request.id] || 0}
                       />
                     ))}
                   </div>
