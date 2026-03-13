@@ -29,7 +29,6 @@ interface DashboardSidebarProps {
 const studentLinks: SidebarLink[] = [
   { href: '/dashboard/student', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/dashboard/student/requests', label: 'My Requests', icon: FileText },
-  { href: '/dashboard/student/notifications', label: 'Notifications', icon: Bell },
   { href: '/dashboard/student/profile', label: 'Profile', icon: User },
 ]
 

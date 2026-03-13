@@ -9,6 +9,9 @@ import { type VolunteerRequest } from "@/lib/store";
 import CalmButton from "./calm-button";
 import { toast } from "sonner";
 import { Badge } from "./ui/badge";
+import { createChat } from "@/lib/chat-utils";
+import Link from "next/link";
+
 
 interface ApplicantReviewModalProps {
   request: VolunteerRequest;
@@ -60,6 +63,9 @@ export default function ApplicantReviewModal({ request, onClose }: ApplicantRevi
           updatedAt: serverTimestamp()
         });
       }
+
+      // 4. Create chat session
+      await createChat(request.id, request.studentId, app.volunteerId);
 
       toast.success("Volunteer Accepted!", {
         description: `${app.volunteerName} has been assigned to this mission.`,
@@ -208,16 +214,23 @@ export default function ApplicantReviewModal({ request, onClose }: ApplicantRevi
 
               {/* Action */}
               <div className="pt-6 border-t border-border mt-auto">
-                <CalmButton 
-                  className="w-full py-6 rounded-2xl text-base"
-                  disabled={selectedApplicant.status !== 'pending' || isProcessing}
-                  onClick={() => handleAcceptVolunteer(selectedApplicant)}
-                >
-                  {isProcessing ? "Processing..." : 
-                   selectedApplicant.status === 'accepted' ? "Already Accepted" :
-                   selectedApplicant.status === 'declined' ? "Declined" :
-                   `Accept ${selectedApplicant.volunteerName.split(' ')[0]}`}
-                </CalmButton>
+                {selectedApplicant.status === 'accepted' ? (
+                  <Link href={`/dashboard/chat/${request.id}`} className="block w-full">
+                    <CalmButton className="w-full py-6 rounded-2xl text-base bg-blue-600 hover:bg-blue-700">
+                      Open Chat with {selectedApplicant.volunteerName.split(' ')[0]}
+                    </CalmButton>
+                  </Link>
+                ) : (
+                  <CalmButton 
+                    className="w-full py-6 rounded-2xl text-base"
+                    disabled={selectedApplicant.status !== 'pending' || isProcessing}
+                    onClick={() => handleAcceptVolunteer(selectedApplicant)}
+                  >
+                    {isProcessing ? "Processing..." : 
+                     selectedApplicant.status === 'declined' ? "Declined" :
+                     `Accept ${selectedApplicant.volunteerName.split(' ')[0]}`}
+                  </CalmButton>
+                )}
               </div>
             </div>
           ) : (

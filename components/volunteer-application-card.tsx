@@ -2,6 +2,7 @@
 
 import { User, MoreVertical, Edit2, Trash2, Plus, MessageSquare, Brain, Calendar, Clock, Timer } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import Link from 'next/link';
 
 interface VolunteerApplicationCardProps {
   app: any;
@@ -28,6 +29,14 @@ export default function VolunteerApplicationCard({ app, onEdit, onDelete }: Volu
         </div>
         
         <div className="flex items-center gap-3">
+          {app.status === 'accepted' && (
+            <Link 
+              href={`/dashboard/chat/${app.requestId}`}
+              className="px-3 py-1.5 bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest rounded-full hover:bg-primary/90 transition-colors shadow-soft flex items-center gap-1.5"
+            >
+              <MessageSquare size={12} /> Chat
+            </Link>
+          )}
           <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest border ${
             app.status === 'accepted' ? 'bg-green-500/10 text-green-600 border-green-500/20' :
             app.status === 'completed' ? 'bg-blue-500/10 text-blue-600 border-blue-500/20' :
