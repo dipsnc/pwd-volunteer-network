@@ -42,13 +42,9 @@ const volunteerLinks: SidebarLink[] = [
 
 const adminLinks: SidebarLink[] = [
   { href: '/dashboard/admin', label: 'Admin Dashboard', icon: LayoutDashboard },
-  { href: '/dashboard/admin/students', label: 'Manage Students', icon: Users },
   { href: '/dashboard/admin/volunteers', label: 'Approve Volunteers', icon: Shield },
+  { href: '/dashboard/admin/students', label: 'Manage Students', icon: Users },
   { href: '/dashboard/admin/requests', label: 'Monitor Requests', icon: FileText },
-  { href: '/dashboard/admin/disputes', label: 'Resolve Disputes', icon: Bell },
-  { href: '/dashboard/admin/analytics', label: 'Analytics', icon: BarChart3 },
-  { href: '/dashboard/admin/announcements', label: 'Announcements', icon: Megaphone },
-  { href: '/dashboard/admin/settings', label: 'Settings', icon: Settings },
 ]
 
 export function DashboardSidebar({ type, userName, userId, userAvatar }: DashboardSidebarProps) {
@@ -134,7 +130,7 @@ export function DashboardSidebar({ type, userName, userId, userAvatar }: Dashboa
         </nav>
 
         {/* Bottom Actions */}
-        <div className="border-t border-border space-y-2">
+        <div className="p-4 border-t border-border space-y-2">
           <button
             onClick={async () => {
               await logout()

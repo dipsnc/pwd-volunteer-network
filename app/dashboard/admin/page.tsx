@@ -1,88 +1,113 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { DashboardSidebar } from '@/components/dashboard-sidebar'
-import { Search, Bell, User, Users, FileCheck, ClipboardList, AlertTriangle, TrendingUp, TrendingDown, Clock, School, Megaphone } from 'lucide-react'
-
-const stats = [
-  { 
-    label: 'Volunteers', 
-    value: '1,284', 
-    change: '+12%', 
-    up: true,
-    icon: Users,
-    iconBg: 'bg-primary/10',
-    iconColor: 'text-primary'
-  },
-  { 
-    label: 'Pending Approvals', 
-    value: '42', 
-    change: '+5%', 
-    up: true,
-    icon: FileCheck,
-    iconBg: 'bg-yellow-100',
-    iconColor: 'text-yellow-600'
-  },
-  { 
-    label: 'Active Tasks', 
-    value: '156', 
-    change: '-2%', 
-    up: false,
-    icon: ClipboardList,
-    iconBg: 'bg-blue-100',
-    iconColor: 'text-blue-600'
-  },
-  { 
-    label: 'Open Disputes', 
-    value: '8', 
-    change: '+1%', 
-    up: true,
-    icon: AlertTriangle,
-    iconBg: 'bg-red-100',
-    iconColor: 'text-red-600'
-  },
-]
-
-const recentApprovals = [
-  { name: 'John Doe', initials: 'JD', role: 'Volunteer', status: 'Pending', statusColor: 'bg-yellow-100 text-yellow-700', date: '2023-10-24', action: 'Review' },
-  { name: 'Jane Smith', initials: 'JS', role: 'Student', status: 'Approved', statusColor: 'bg-green-100 text-green-700', date: '2023-10-23', action: 'View' },
-  { name: 'Alex Johnson', initials: 'AJ', role: 'Volunteer', status: 'Flagged', statusColor: 'bg-red-100 text-red-700', date: '2023-10-22', action: 'Resolve' },
-]
-
-const criticalTasks = [
-  { 
-    title: 'Community Park Cleanup',
-    subtitle: 'Overdue by 2 hours • 12 Volunteers assigned',
-    urgent: true,
-    icon: School,
-    action: 'Contact Leads'
-  },
-  { 
-    title: 'After-school Tutoring Session',
-    subtitle: 'Starts in 30 mins • 4 Students waiting',
-    urgent: false,
-    icon: Clock,
-    action: 'View Details'
-  },
-]
-
-const analyticsData = [
-  { label: 'Student Engagement', value: 85, color: 'bg-primary' },
-  { label: 'Volunteer Retention', value: 62, color: 'bg-blue-500' },
-  { label: 'Dispute Resolution Rate', value: 94, color: 'bg-red-400' },
-]
-
-const chartData = [
-  { day: 'MON', value: 60 },
-  { day: 'TUE', value: 45 },
-  { day: 'WED', value: 80 },
-  { day: 'THU', value: 70 },
-  { day: 'FRI', value: 90 },
-  { day: 'SAT', value: 75 },
-  { day: 'SUN', value: 55 },
-]
+import { 
+  Search, Bell, User, Users, FileCheck, ClipboardList, 
+  AlertTriangle, TrendingUp, TrendingDown, Clock, School, 
+  Megaphone, ChevronRight
+} from 'lucide-react'
+import { db } from "@/lib/firebase"
+import { collection, query, onSnapshot, orderBy, limit } from "firebase/firestore"
+import { cn } from "@/lib/utils"
 
 export default function AdminDashboardPage() {
-  const maxChartValue = Math.max(...chartData.map(d => d.value))
+  const [counts, setCounts] = useState({
+    volunteers: 0,
+    pendingVolunteers: 0,
+    activeRequests: 0,
+    openRequests: 0,
+    totalStudents: 0
+  })
+  const [recentRequests, setRecentRequests] = useState<any[]>([])
+  const [criticalRequests, setCriticalRequests] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    // Listen for volunteers
+    const unsubVolunteers = onSnapshot(collection(db, "volunteers"), (snapshot) => {
+      const all = snapshot.size
+      const pending = snapshot.docs.filter(doc => doc.data().status === 'pending').length
+      setCounts(prev => ({ ...prev, volunteers: all, pendingVolunteers: pending }))
+    })
+
+    // Listen for students
+    const unsubStudents = onSnapshot(collection(db, "students"), (snapshot) => {
+      setCounts(prev => ({ ...prev, totalStudents: snapshot.size }))
+    })
+
+    // Listen for requests
+    const unsubRequests = onSnapshot(collection(db, "requests"), (snapshot) => {
+      const all = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+      const active = all.filter((r: any) => r.status === 'assigned').length
+      const open = all.filter((r: any) => r.status === 'open').length
+      
+      setCounts(prev => ({ ...prev, activeRequests: active, openRequests: open }))
+      
+      // Recent requests (top 3 for the table)
+      const sorted = [...all].sort((a: any, b: any) => 
+        (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)
+      ).slice(0, 3)
+      setRecentRequests(sorted)
+
+      // Critical requests (high urgency)
+      const critical = all.filter((r: any) => r.urgency === 'high').slice(0, 2)
+      setCriticalRequests(critical)
+      
+      setLoading(false)
+    })
+
+    return () => {
+      unsubVolunteers()
+      unsubStudents()
+      unsubRequests()
+    }
+  }, [])
+
+  const stats = [
+    { 
+      label: 'Volunteers', 
+      value: counts.volunteers.toLocaleString(), 
+      change: 'Total', 
+      up: true,
+      icon: Users,
+      iconBg: 'bg-primary/10',
+      iconColor: 'text-primary'
+    },
+    { 
+      label: 'Pending Approvals', 
+      value: counts.pendingVolunteers.toString(), 
+      change: 'Needs Action', 
+      up: counts.pendingVolunteers > 0,
+      icon: FileCheck,
+      iconBg: 'bg-yellow-100',
+      iconColor: 'text-yellow-600'
+    },
+    { 
+      label: 'Active Missions', 
+      value: counts.activeRequests.toString(), 
+      change: 'Assigned', 
+      up: true,
+      icon: ClipboardList,
+      iconBg: 'bg-blue-100',
+      iconColor: 'text-blue-600'
+    },
+    { 
+      label: 'Open Requests', 
+      value: counts.openRequests.toString(), 
+      change: 'Unassigned', 
+      up: true,
+      icon: AlertTriangle,
+      iconBg: 'bg-red-100',
+      iconColor: 'text-red-600'
+    },
+  ]
+
+  const analyticsData = [
+    { label: 'Active Coverage', value: counts.volunteers > 0 ? Math.round((counts.activeRequests / counts.volunteers) * 100) : 0, color: 'bg-primary' },
+    { label: 'Student Engagement', value: counts.totalStudents > 0 ? Math.round((counts.activeRequests / counts.totalStudents) * 100) : 0, color: 'bg-blue-500' },
+    { label: 'System Health', value: 98, color: 'bg-green-500' },
+  ]
 
   return (
     <div className="min-h-screen bg-background">
@@ -90,7 +115,7 @@ export default function AdminDashboardPage() {
       
       <main className="lg:ml-64 min-h-screen">
         {/* Header */}
-        <header className="sticky top-0 z-30 bg-card border-b border-border px-6 py-4">
+        <header className="sticky top-0 z-30 bg-card border-b border-border p-6">
           <div className="flex items-center justify-between">
             <div className="lg:ml-0 ml-12 flex items-center gap-3">
               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
@@ -131,8 +156,7 @@ export default function AdminDashboardPage() {
                     <stat.icon className={`w-5 h-5 ${stat.iconColor}`} />
                   </div>
                 </div>
-                <div className={`flex items-center gap-1 text-sm ${stat.up ? 'text-primary' : 'text-red-500'}`}>
-                  {stat.up ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                <div className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider ${stat.up ? 'text-primary' : 'text-muted-foreground'}`}>
                   {stat.change}
                 </div>
               </div>
@@ -142,45 +166,62 @@ export default function AdminDashboardPage() {
           <div className="grid lg:grid-cols-3 gap-6">
             {/* Left Column */}
             <div className="lg:col-span-2 space-y-6">
-              {/* Recent Approvals */}
-              <div className="bg-card rounded-2xl p-6 border border-border">
+              {/* Recent Activity */}
+              <div className="bg-card rounded-2xl p-6 border border-border shadow-soft">
                 <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-lg font-semibold text-foreground">Recent Approvals & Monitoring</h2>
+                  <h2 className="text-lg font-semibold text-foreground">Recent Platform Activity</h2>
                   <button className="text-sm text-primary font-medium hover:underline">View All</button>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
                       <tr className="text-left text-sm text-muted-foreground border-b border-border">
-                        <th className="pb-3 font-medium">NAME</th>
-                        <th className="pb-3 font-medium">ROLE</th>
+                        <th className="pb-3 font-medium">NAME / TITLE</th>
+                        <th className="pb-3 font-medium">TYPE</th>
                         <th className="pb-3 font-medium">STATUS</th>
-                        <th className="pb-3 font-medium">DATE</th>
-                        <th className="pb-3 font-medium">ACTION</th>
+                        <th className="pb-3 font-medium">CREATED</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {recentApprovals.map((item, index) => (
-                        <tr key={index} className="border-b border-border last:border-0">
+                      {loading ? (
+                        [1, 2, 3].map(i => (
+                          <tr key={i} className="animate-pulse">
+                            <td className="py-4"><div className="h-4 w-32 bg-muted rounded" /></td>
+                            <td className="py-4"><div className="h-4 w-20 bg-muted rounded" /></td>
+                            <td className="py-4"><div className="h-6 w-16 bg-muted rounded-full" /></td>
+                            <td className="py-4"><div className="h-4 w-24 bg-muted rounded" /></td>
+                          </tr>
+                        ))
+                      ) : recentRequests.length === 0 ? (
+                        <tr>
+                          <td colSpan={4} className="py-8 text-center text-muted-foreground">No recent requests</td>
+                        </tr>
+                      ) : recentRequests.map((item, index) => (
+                        <tr key={index} className="border-b border-border last:border-0 hover:bg-muted/10 transition-colors">
                           <td className="py-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
-                                <span className="text-sm font-medium text-foreground">{item.initials}</span>
+                              <div className="w-10 h-10 rounded-xl bg-primary/5 flex items-center justify-center border border-primary/10">
+                                <span className="text-sm font-bold text-primary">{item.studentName?.substring(0, 1) || 'R'}</span>
                               </div>
-                              <span className="font-medium text-foreground">{item.name}</span>
+                              <div className="flex flex-col">
+                                <span className="font-bold text-foreground truncate max-w-[200px]">{item.title}</span>
+                                <span className="text-xs text-muted-foreground">{item.studentName}</span>
+                              </div>
                             </div>
                           </td>
-                          <td className="py-4 text-muted-foreground">{item.role}</td>
+                          <td className="py-4 text-xs font-semibold uppercase text-muted-foreground">{item.categoryTags?.[0] || 'Mission'}</td>
                           <td className="py-4">
-                            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${item.statusColor}`}>
+                            <span className={cn(
+                              "text-[10px] font-black uppercase px-2 py-0.5 rounded-full",
+                              item.status === 'open' ? "bg-orange-100 text-orange-700" :
+                              item.status === 'assigned' ? "bg-blue-100 text-blue-700" :
+                              "bg-green-100 text-green-700"
+                            )}>
                               {item.status}
                             </span>
                           </td>
-                          <td className="py-4 text-muted-foreground">{item.date}</td>
-                          <td className="py-4">
-                            <button className="text-primary font-medium text-sm hover:underline">
-                              {item.action}
-                            </button>
+                          <td className="py-4 text-xs text-muted-foreground">
+                            {item.createdAt?.seconds ? new Date(item.createdAt.seconds * 1000).toLocaleDateString() : 'Just now'}
                           </td>
                         </tr>
                       ))}
@@ -189,29 +230,27 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
 
-              {/* Critical Tasks */}
-              <div className="bg-card rounded-2xl p-6 border border-border">
-                <h2 className="text-lg font-semibold text-foreground mb-4">Critical Task Monitoring</h2>
+              {/* Critical Missions */}
+              <div className="bg-card rounded-2xl p-6 border border-border shadow-soft">
+                <h2 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                  <AlertTriangle className="w-5 h-5 text-red-500" /> High Urgency Missions
+                </h2>
                 <div className="space-y-4">
-                  {criticalTasks.map((task, index) => (
-                    <div key={index} className="flex items-center justify-between p-4 rounded-xl bg-muted/50">
+                  {criticalRequests.length === 0 ? (
+                    <p className="text-sm text-muted-foreground italic">No critical missions currently active</p>
+                  ) : criticalRequests.map((task, index) => (
+                    <div key={index} className="flex items-center justify-between p-4 rounded-xl bg-muted/50 border border-border/50">
                       <div className="flex items-center gap-4">
-                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                          task.urgent ? 'bg-red-100' : 'bg-blue-100'
-                        }`}>
-                          <task.icon className={`w-6 h-6 ${task.urgent ? 'text-red-600' : 'text-blue-600'}`} />
+                        <div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center">
+                          <AlertTriangle className="w-6 h-6 text-red-600" />
                         </div>
                         <div>
-                          <p className="font-semibold text-foreground">{task.title}</p>
-                          <p className="text-sm text-muted-foreground">{task.subtitle}</p>
+                          <p className="font-bold text-foreground">{task.title}</p>
+                          <p className="text-xs text-muted-foreground">{task.studentName} • {task.location?.address?.split(',')[0]}</p>
                         </div>
                       </div>
-                      <button className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors ${
-                        task.urgent 
-                          ? 'bg-primary text-primary-foreground hover:bg-primary/90' 
-                          : 'border border-border text-foreground hover:bg-muted'
-                      }`}>
-                        {task.action}
+                      <button className="px-4 py-2 bg-primary text-primary-foreground rounded-xl text-xs font-bold shadow-soft hover:opacity-90 transition-all">
+                        Intervene
                       </button>
                     </div>
                   ))}
@@ -222,18 +261,18 @@ export default function AdminDashboardPage() {
             {/* Right Column */}
             <div className="space-y-6">
               {/* Analytics Overview */}
-              <div className="bg-card rounded-2xl p-6 border border-border">
-                <h3 className="font-semibold text-foreground mb-4">Analytics Overview</h3>
+              <div className="bg-card rounded-2xl p-6 border border-border shadow-soft">
+                <h3 className="font-semibold text-foreground mb-4">Operations Meta</h3>
                 <div className="space-y-4">
                   {analyticsData.map((item) => (
                     <div key={item.label}>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm text-muted-foreground">{item.label}</span>
-                        <span className="text-sm font-semibold text-foreground">{item.value}%</span>
+                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-widest">{item.label}</span>
+                        <span className="text-sm font-bold text-foreground">{item.value}%</span>
                       </div>
-                      <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+                      <div className="w-full h-1.5 bg-muted rounded-full overflow-hidden">
                         <div 
-                          className={`h-full ${item.color} rounded-full transition-all`}
+                          className={`h-full ${item.color} rounded-full transition-all duration-1000`}
                           style={{ width: `${item.value}%` }}
                         />
                       </div>
@@ -242,33 +281,20 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
 
-              {/* Monthly Growth */}
-              <div className="bg-card rounded-2xl p-6 border border-border">
-                <h3 className="font-semibold text-foreground mb-4">Monthly Growth Activity</h3>
-                <div className="flex items-end justify-between h-32 gap-2">
-                  {chartData.map((d) => (
-                    <div key={d.day} className="flex flex-col items-center flex-1">
-                      <div 
-                        className="w-full bg-primary/20 rounded-t-md transition-all hover:bg-primary/30"
-                        style={{ height: `${(d.value / maxChartValue) * 100}%` }}
-                      />
-                      <span className="text-xs text-muted-foreground mt-2">{d.day}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
               {/* System Update */}
-              <div className="bg-primary rounded-2xl p-6 text-primary-foreground">
-                <div className="flex items-center gap-2 mb-3">
-                  <Megaphone className="w-5 h-5" />
-                  <h3 className="font-semibold">System Update</h3>
+              <div className="bg-primary rounded-[32px] p-8 text-primary-foreground shadow-soft relative overflow-hidden group">
+                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:scale-110 transition-transform">
+                  <Megaphone className="w-20 h-20" />
                 </div>
-                <p className="text-sm opacity-90 mb-4">
-                  We are rolling out the new reward system this weekend. All pending points will be migrated automatically.
+                <div className="flex items-center gap-2 mb-3 relative z-10">
+                  <Megaphone className="w-5 h-5" />
+                  <h3 className="font-bold">System Pulse</h3>
+                </div>
+                <p className="text-sm opacity-90 mb-6 relative z-10 leading-relaxed">
+                  The new mission rewards system is scaling up. Real-time auditing is now active for all assigned specialists.
                 </p>
-                <button className="w-full bg-card text-primary py-3 rounded-xl font-semibold hover:bg-card/90 transition-colors">
-                  Read Announcement
+                <button className="w-full bg-card text-primary py-3 rounded-2xl font-bold text-xs shadow-soft hover:bg-card/90 transition-all relative z-10">
+                  Internal Memo
                 </button>
               </div>
             </div>
