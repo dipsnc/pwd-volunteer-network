@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { clearCurrentUser } from '@/lib/store'
+import { useAuth } from './auth-provider'
 
 interface SidebarLink {
   href: string
@@ -52,6 +53,7 @@ const adminLinks: SidebarLink[] = [
 export function DashboardSidebar({ type, userName, userId, userAvatar }: DashboardSidebarProps) {
   const pathname = usePathname()
   const [isOpen, setIsOpen] = useState(false)
+  const { logout } = useAuth()
   
   const links = type === 'student' ? studentLinks : type === 'volunteer' ? volunteerLinks : adminLinks
   const brandName = type === 'student' ? 'Student Portal' : type === 'volunteer' ? 'ImpactPortal' : 'Admin Console'
@@ -133,7 +135,8 @@ export function DashboardSidebar({ type, userName, userId, userAvatar }: Dashboa
             Back
           </Link>
           <button
-            onClick={() => {
+            onClick={async () => {
+              await logout()
               clearCurrentUser()
               window.location.href = '/'
             }}

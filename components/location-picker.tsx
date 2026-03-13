@@ -20,6 +20,7 @@ L.Marker.prototype.options.icon = DefaultIcon
 interface LocationPickerProps {
   onLocationSelect: (lat: number, lng: number, address: string) => void
   disabled?: boolean
+  currentLocation?: { lat: number, lng: number, address: string } | null
 }
 
 function LocationMarker({ position, setPosition }: { position: L.LatLng | null, setPosition: (pos: L.LatLng) => void }) {
@@ -40,7 +41,7 @@ function MapUpdater({ center }: { center: L.LatLngExpression }) {
   return null
 }
 
-export default function LocationPicker({ onLocationSelect, disabled = false }: LocationPickerProps) {
+export default function LocationPicker({ onLocationSelect, disabled = false, currentLocation }: LocationPickerProps) {
   const [position, setPosition] = useState<L.LatLng | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(false)
@@ -110,6 +111,14 @@ export default function LocationPicker({ onLocationSelect, disabled = false }: L
       console.error("Reverse geocoding failed:", error)
     }
   }, [onLocationSelect])
+
+  useEffect(() => {
+    if (currentLocation) {
+      const newPos = new L.LatLng(currentLocation.lat, currentLocation.lng)
+      setPosition(newPos)
+      setCenter([currentLocation.lat, currentLocation.lng])
+    }
+  }, [currentLocation])
 
   useEffect(() => {
     if (position) {

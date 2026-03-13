@@ -6,8 +6,12 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Mail, Lock, Eye, EyeOff, Phone, LogIn } from "lucide-react";
 import { useAccessibility } from "@/components/accessibility-provider";
-import { findStudentByLogin, setCurrentUser } from "@/lib/store";
+import { setCurrentUser } from "@/lib/store";
 import { toast } from "sonner";
+import { auth, db } from "@/lib/firebase";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
+import { useAuth } from "@/components/auth-provider";
 
 export default function StudentLoginPage() {
   const [loginMethod, setLoginMethod] = useState<"email" | "phone">("email");
@@ -16,30 +20,76 @@ export default function StudentLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const { speak } = useAccessibility();
   const router = useRouter();
+  const { googleSignIn } = useAuth();
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const user = findStudentByLogin(identifier, password);
-    if (user) {
-      setCurrentUser(user);
-      toast.success("Welcome back, " + user.fullName + "!", {
-        description: "You've been successfully signed in.",
-      });
-      speak("Welcome back " + user.fullName);
-      router.push("/dashboard/student");
-    } else {
+    setLoading(true);
+    try {
+      // Firebase Sign In
+      const userCredential = await signInWithEmailAndPassword(auth, identifier, password);
+      const firebaseUser = userCredential.user;
+
+      // Fetch user data from Firestore
+      const userDoc = await getDoc(doc(db, "students", firebaseUser.uid));
+      
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        // Legacy support
+        setCurrentUser({ ...userData as any, id: firebaseUser.uid, password });
+        
+        toast.success("Welcome back, " + userData.fullName + "!", {
+          description: "You've been successfully signed in.",
+        });
+        speak("Welcome back " + userData.fullName);
+        router.push("/dashboard/student");
+      } else {
+        // User exists in Auth but not in Firestore 'students'
+        // This could happen if they haven't finished onboarding or are a volunteer
+        toast.error("Profile not found", {
+          description: "Please ensure you have completed your student registration.",
+        });
+        // Optionally redirect to registration or welcome?
+      }
+    } catch (error: any) {
+      console.error("Login error:", error);
       toast.error("Invalid credentials", {
-        description: "Please check your login details and try again.",
+        description: error.message || "Please check your login details and try again.",
       });
       speak("Login failed. Please check your credentials.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleGoogleSignIn = () => {
-    speak("Google sign in is a demo feature");
-    toast.warning("Demo Mode", {
-      description: "Google Sign-In requires backend integration. Please use email/phone login.",
-    });
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    try {
+      const result = await googleSignIn();
+      if (!result) return;
+      
+      const firebaseUser = result.user;
+
+      // Fetch user data from Firestore
+      const userDoc = await getDoc(doc(db, "students", firebaseUser.uid));
+
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        setCurrentUser({ ...(userData as any), id: firebaseUser.uid });
+        toast.success("Welcome back, " + userData.fullName + "!");
+        router.push("/dashboard/student");
+      } else {
+        toast.error("Account not found", {
+          description: "Please register as a student first.",
+        });
+      }
+    } catch (error: any) {
+      console.error("Google login error:", error);
+      toast.error("Google Sign-In failed");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -63,7 +113,8 @@ export default function StudentLoginPage() {
 
             <button 
               onClick={handleGoogleSignIn} 
-              className="w-full flex items-center justify-center gap-3 p-4 rounded-xl border-2 border-border bg-background text-foreground font-medium transition-all duration-300 hover:border-primary/30 hover:shadow-soft"
+              disabled={loading}
+              className="w-full flex items-center justify-center gap-3 p-4 rounded-xl border-2 border-border bg-background text-foreground font-medium transition-all duration-300 hover:border-primary/30 hover:shadow-soft disabled:opacity-50"
               aria-label="Sign in with Google"
             >
               <svg width="20" height="20" viewBox="0 0 24 24">
@@ -147,10 +198,11 @@ export default function StudentLoginPage() {
                 whileHover={{ scale: 1.02 }} 
                 whileTap={{ scale: 0.98 }} 
                 type="submit" 
-                className="w-full py-4 rounded-xl bg-primary text-primary-foreground font-display font-bold text-base transition-all duration-300 hover:shadow-elevated flex items-center justify-center gap-2"
-                aria-label="Sign in"
+                disabled={loading}
+                className="w-full py-4 rounded-xl bg-primary text-primary-foreground font-display font-bold text-base transition-all duration-300 hover:shadow-elevated flex items-center justify-center gap-2 disabled:opacity-50"
+                aria-label={loading ? "Signing in..." : "Sign in"}
               >
-                <LogIn size={18} /> Sign In
+                {loading ? <span className="animate-pulse">Signing in...</span> : <><LogIn size={18} /> Sign In</>}
               </motion.button>
             </form>
 

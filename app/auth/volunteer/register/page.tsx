@@ -6,8 +6,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Upload, FileCheck, User, Lock, Phone, Mail, FileText, MapPin, GraduationCap } from "lucide-react";
 import { useAccessibility } from "@/components/accessibility-provider";
-import { saveVolunteer, generateId } from "@/lib/store";
+import {  } from "@/lib/store";
 import { toast } from "sonner";
+import { auth, db } from "@/lib/firebase";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, setDoc } from "firebase/firestore";
 
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
@@ -23,6 +26,7 @@ export default function VolunteerRegisterPage() {
   const router = useRouter();
   const studentIdRef = useRef<HTMLInputElement>(null);
   const govDocRef = useRef<HTMLInputElement>(null);
+  const [loading, setLoading] = useState(false);
 
   // Step 1
   const [fullName, setFullName] = useState("");
@@ -76,7 +80,7 @@ export default function VolunteerRegisterPage() {
     speak(`Back to Step ${step - 1}`); 
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!assistanceType || !username || !password) { 
       toast.error("Account Setup Missing", { description: "Please select an assistance type and set your login credentials." });
       return; 
@@ -90,21 +94,65 @@ export default function VolunteerRegisterPage() {
       return; 
     }
 
-    const user = {
-      id: generateId(), type: 'volunteer' as const, fullName, phone, email, reason,
-      collegeName, course, year, courseTimeline,
-      studentIdName: studentId?.name, govDocName: govDoc?.name,
-      parentGuardianName, parentGuardianPhone, alternativeContact,
-      locationPreference, permanentAddress, bloodGroup, age, weight, height,
-      skills, assistanceType, username, password,
-      status: 'pending' as const, createdAt: new Date().toISOString()
-    };
-    saveVolunteer(user);
-    toast.success("Application Submitted!", {
-      description: "Admin will review your volunteer application shortly.",
-    });
-    speak("Registration complete! Your request has been sent to admin for approval.");
-    router.push("/auth/volunteer/pending");
+    setLoading(true);
+    try {
+      // 1. Create User in Firebase Auth
+      // Note: We use the email and password provided by the user
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+
+      const userData = {
+        uid: firebaseUser.uid,
+        type: 'volunteer' as const,
+        fullName,
+        phone,
+        email,
+        reason,
+        collegeName,
+        course,
+        year,
+        courseTimeline,
+        studentIdName: studentId?.name || null,
+        govDocName: govDoc?.name || null,
+        parentGuardianName,
+        parentGuardianPhone,
+        alternativeContact,
+        locationPreference,
+        permanentAddress,
+        bloodGroup,
+        age,
+        weight,
+        height,
+        skills,
+        assistanceType,
+        username,
+        status: 'pending' as const,
+        createdAt: new Date().toISOString()
+      };
+
+      // 2. Clean data for Firestore (remove undefined)
+      const cleanData = JSON.parse(JSON.stringify(userData, (key, value) => 
+        value === undefined ? null : value
+      ));
+
+      // 3. Save to Firestore
+      await setDoc(doc(db, "volunteers", firebaseUser.uid), cleanData);
+
+      toast.success("Application Submitted!", {
+        description: "Admin will review your volunteer application shortly.",
+      });
+      speak("Registration complete! Your request has been sent to admin for approval.");
+      router.push("/auth/volunteer/pending");
+    } catch (error: any) {
+      console.error("Registration error:", error);
+      let message = "Could not complete registration. Please try again.";
+      if (error.code === 'auth/email-already-in-use') {
+        message = "This email is already registered.";
+      }
+      toast.error("Registration Failed", { description: message });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -322,10 +370,11 @@ export default function VolunteerRegisterPage() {
                 whileHover={{ scale: 1.05 }} 
                 whileTap={{ scale: 0.95 }} 
                 onClick={handleSubmit}
-                className="flex items-center gap-2 px-8 py-3.5 rounded-xl bg-primary text-white font-display font-bold text-sm shadow-lg hover:shadow-elevated transition-all"
+                disabled={loading}
+                className={`flex items-center gap-2 px-8 py-3.5 rounded-xl bg-primary text-white font-display font-bold text-sm shadow-lg hover:shadow-elevated transition-all ${loading ? "opacity-70 cursor-not-allowed" : ""}`}
                 aria-label="Submit volunteer application"
               >
-                Submit Application
+                {loading ? "Submitting..." : "Submit Application"}
               </motion.button>
             )}
           </div>

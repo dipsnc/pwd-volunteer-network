@@ -9,6 +9,9 @@ import { getCurrentUser, clearCurrentUser, saveStudent, type StudentUser } from 
 import { toast } from "sonner"
 import CalmButton from "@/components/calm-button"
 import CalmCard from "@/components/calm-card"
+import { useAuth } from "@/components/auth-provider"
+import { db } from "@/lib/firebase"
+import { doc, getDoc, updateDoc } from "firebase/firestore"
 
 const LANGUAGES = ["English", "Hindi", "Marathi"]
 
@@ -24,6 +27,9 @@ export default function StudentProfilePage() {
     textSize, 
     setTextSize 
   } = useAccessibility()
+  const { user: firebaseUser, logout } = useAuth()
+  const [profileData, setProfileData] = useState<StudentUser | null>(null)
+  const [loadingProfile, setLoadingProfile] = useState(true)
 
   const [activeSection, setActiveSection] = useState<string>("profile")
   const [language, setLanguage] = useState("English")
@@ -35,34 +41,67 @@ export default function StudentProfilePage() {
 
   useEffect(() => {
     setMounted(true)
-    if (!user || user.type !== 'student') {
+    if (mounted && !firebaseUser && !loadingProfile) {
       router.push("/")
     }
-  }, [user, router])
+  }, [firebaseUser, loadingProfile, mounted, router])
 
-  if (!mounted || !user) return null
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (firebaseUser) {
+        try {
+          const docRef = doc(db, "students", firebaseUser.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            const data = docSnap.data() as StudentUser;
+            setProfileData(data);
+            setNewPhone(data.phone || "");
+            setNewEmail(data.email || "");
+          }
+        } catch (error) {
+          console.error("Error fetching profile:", error);
+          toast.error("Failed to load profile data");
+        } finally {
+          setLoadingProfile(false);
+        }
+      } else {
+        setLoadingProfile(false);
+      }
+    };
 
-  const handleSignOut = () => {
+    if (mounted) fetchProfile();
+  }, [firebaseUser, mounted]);
+
+  if (!mounted || loadingProfile) return <div className="min-h-screen bg-background flex items-center justify-center font-bold">Loading...</div>
+  if (!firebaseUser || !profileData) return null
+
+  const handleSignOut = async () => {
+    if (logout) await logout()
     clearCurrentUser()
-    speak("Signed out")
+    if (speak) speak("Signed out")
     router.push("/")
   }
 
   const handlePasswordChange = () => {
-    if (newPassword.length < 6) {
-      toast.error("Password must be at least 6 characters")
-      return
-    }
-    saveStudent({ ...user, password: newPassword })
-    toast.success("Password updated successfully")
-    setNewPassword("")
-    speak("Password updated")
+    toast.info("Password Change", {
+      description: "Please use the 'Forgot Password' flow or Firebase console to change passwords manually in this demo."
+    });
+    // In a real app, you'd use updatePassword(firebaseUser, newPassword)
   }
 
-  const handleContactUpdate = () => {
-    saveStudent({ ...user, phone: newPhone, email: newEmail })
-    toast.success("Contact info updated")
-    speak("Contact information updated")
+  const handleContactUpdate = async () => {
+    if (!firebaseUser) return;
+    try {
+      await updateDoc(doc(db, "students", firebaseUser.uid), {
+        phone: newPhone,
+        email: newEmail
+      });
+      setProfileData({ ...profileData, phone: newPhone, email: newEmail });
+      toast.success("Contact info updated")
+      if (speak) speak("Contact information updated")
+    } catch (error) {
+      toast.error("Failed to update contact info");
+    }
   }
 
   const inputCls = "w-full px-4 py-3 rounded-xl border-2 border-border bg-background text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none transition-colors"
@@ -119,26 +158,26 @@ export default function StudentProfilePage() {
                   <div>
                     <h2 className="font-display text-2xl font-bold text-foreground mb-6 border-b border-border pb-4">Personal Overview</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <ProfileField label="Full Name" value={user.fullName} icon={<User className="w-4 h-4" />} />
-                      <ProfileField label="Username" value={user.username} icon={<User className="w-4 h-4" />} />
-                      <ProfileField label="Phone" value={user.phone} icon={<Phone className="w-4 h-4" />} />
-                      <ProfileField label="Email" value={user.email} icon={<Mail className="w-4 h-4" />} />
-                      <ProfileField label="Blood Group" value={user.bloodGroup || "—"} />
-                      <ProfileField label="Age" value={user.age || "—"} />
+                      <ProfileField label="Full Name" value={profileData.fullName} icon={<User className="w-4 h-4" />} />
+                      <ProfileField label="Username" value={profileData.username} icon={<User className="w-4 h-4" />} />
+                      <ProfileField label="Phone" value={profileData.phone} icon={<Phone className="w-4 h-4" />} />
+                      <ProfileField label="Email" value={profileData.email} icon={<Mail className="w-4 h-4" />} />
+                      <ProfileField label="Blood Group" value={profileData.bloodGroup || "—"} />
+                      <ProfileField label="Age" value={profileData.age || "—"} />
                     </div>
                   </div>
 
                   <div className="pt-8 border-t border-border/50">
                     <h3 className="font-display text-xl font-bold text-foreground mb-6">Disability & Support</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <ProfileField label="Disability Type" value={user.disabilityType} />
-                      <ProfileField label="Weight" value={user.weight ? `${user.weight} kg` : "—"} />
-                      <ProfileField label="Height" value={user.height ? `${user.height} cm` : "—"} />
-                      <ProfileField label="Enrolled in College" value={user.enrolledInCollege ? "Yes" : "No"} />
+                      <ProfileField label="Disability Type" value={profileData.disabilityType} />
+                      <ProfileField label="Weight" value={profileData.weight ? `${profileData.weight} kg` : "—"} />
+                      <ProfileField label="Height" value={profileData.height ? `${profileData.height} cm` : "—"} />
+                      <ProfileField label="Enrolled in College" value={profileData.enrolledInCollege ? "Yes" : "No"} />
                     </div>
                     <div className="mt-6 p-4 rounded-xl bg-muted/30 border border-border/50">
                        <label className="text-xs font-black text-muted-foreground uppercase tracking-widest mb-1 block">Course Details</label>
-                       <p className="text-foreground font-medium text-sm leading-relaxed">{user.courseDetails}</p>
+                       <p className="text-foreground font-medium text-sm leading-relaxed">{profileData.courseDetails}</p>
                     </div>
                   </div>
                 </motion.div>

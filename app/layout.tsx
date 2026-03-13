@@ -4,6 +4,7 @@ import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 import { AccessibilityProvider } from '@/components/accessibility-provider'
 import { AccessibilityWidget } from '@/components/accessibility-widget'
+import { AuthProvider } from '@/components/auth-provider'
 
 const dmSans = DM_Sans({ 
   subsets: ["latin"],
@@ -43,11 +44,13 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${dmSans.variable} font-sans antialiased`}>
-        <AccessibilityProvider>
-          {children}
-          <AccessibilityWidget />
-          <Toaster position="top-center" richColors />
-        </AccessibilityProvider>
+        <AuthProvider>
+          <AccessibilityProvider>
+            {children}
+            <AccessibilityWidget />
+            <Toaster position="top-center" richColors />
+          </AccessibilityProvider>
+        </AuthProvider>
         <Analytics />
       </body>
     </html>

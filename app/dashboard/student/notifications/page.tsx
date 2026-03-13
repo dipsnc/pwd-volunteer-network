@@ -76,31 +76,28 @@ export default function NotificationsPage() {
         userId={user?.id}
       />
 
-      <main className="flex-1 lg:ml-64 p-8">
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10">
-          <div>
-            <h1 className="text-4xl font-display font-black tracking-tight text-foreground">
-              Your <span className="text-primary">Notifications</span>
-            </h1>
-            <p className="text-muted-foreground mt-2 font-medium">Stay updated on your volunteer requests and campus news.</p>
-          </div>
-          
-          <div className="flex items-center gap-3">
-            <div className="relative group">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
-              <input 
-                type="text" 
-                placeholder="Search alerts..." 
-                className="bg-card border border-border rounded-2xl py-3 pl-12 pr-4 text-sm font-medium focus:ring-2 focus:ring-primary/20 outline-none w-64 transition-all"
-              />
+      <main className="flex-1 lg:ml-64">
+        <header className="sticky top-0 z-30 bg-card border-b border-border px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="lg:ml-0 ml-12">
+              <h1 className="text-2xl font-bold text-foreground">Notifications</h1>
+              <p className="text-muted-foreground">View and manage your notifications</p>
             </div>
-            <button className="p-3 bg-card border border-border rounded-2xl hover:bg-muted transition-colors text-muted-foreground">
-              <Filter className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-4">
+              <div className="hidden md:flex items-center gap-2 bg-muted rounded-xl px-4 py-2">
+                <Search className="w-4 h-4 text-muted-foreground" />
+                <input 
+                  type="text" 
+                  placeholder="Search notifications..." 
+                  className="bg-transparent border-none outline-none text-sm w-40"
+                />
+              </div>
+            </div>
           </div>
         </header>
 
-        <div className="max-w-4xl mx-auto space-y-4">
+
+        <div className="max-w-4xl mx-auto space-y-6 my-6">
           <AnimatePresence mode="popLayout">
             {notifications.map((notif) => (
               <motion.div

@@ -69,6 +69,35 @@ export default function VolunteerRequestForm({ onClose, onSuccess, request, read
     }
   }
 
+  const handleLocateMe = () => {
+    if (!navigator.geolocation) {
+      toast.error("Geolocation is not supported by your browser");
+      return;
+    }
+
+    toast.promise(
+      new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+          try {
+            const { latitude, longitude } = pos.coords;
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`);
+            const data = await res.json();
+            const locData = { lat: latitude, lng: longitude, address: data.display_name || "Custom Location" };
+            setLocation(locData);
+            resolve(locData);
+          } catch (err) {
+            reject(err);
+          }
+        }, reject);
+      }),
+      {
+        loading: 'Finding your location...',
+        success: 'Location updated!',
+        error: 'Could not detect location.',
+      }
+    );
+  };
+
   const onSubmit = (data: FormValues) => {
     if (!location) {
       toast.error("Please select a location on the map.")
@@ -104,7 +133,7 @@ export default function VolunteerRequestForm({ onClose, onSuccess, request, read
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm overflow-y-auto">
+    <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm overflow-y-auto">
       <motion.div 
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -256,10 +285,27 @@ export default function VolunteerRequestForm({ onClose, onSuccess, request, read
 
           {/* Location Picker */}
           <div className="space-y-3">
-            <label className="text-sm font-display font-bold text-foreground flex items-center gap-2">
-              <MapPin className="w-4 h-4 text-primary" /> Meeting Location
-            </label>
-            <LocationPicker onLocationSelect={(lat, lng, address) => setLocation({ lat, lng, address })} disabled={!isEditing} />
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-display font-bold text-foreground flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-primary" /> Meeting Location
+              </label>
+              {isEditing && (
+                <button 
+                  type="button" 
+                  onClick={handleLocateMe} 
+                  className="text-xs text-primary flex items-center gap-1 hover:underline font-bold"
+                >
+                  <MapPin className="w-3 h-3" /> Use My Location
+                </button>
+              )}
+            </div>
+            
+            <LocationPicker 
+              onLocationSelect={(lat, lng, address) => setLocation({ lat, lng, address })} 
+              disabled={!isEditing} 
+              currentLocation={location}
+            />
+            
             {location && (
               <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 shadow-soft">
                 <p className="text-[10px] font-bold text-primary mb-1 tracking-widest">SELECTED ADDRESS:</p>

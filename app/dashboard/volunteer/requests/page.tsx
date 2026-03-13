@@ -4,6 +4,10 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { DashboardSidebar } from '@/components/dashboard-sidebar'
 import { Search, Bell, Settings, MapPin, Wifi, Clock, Filter, Home, PawPrint, BookOpen, Users } from 'lucide-react'
+import { useAuth } from '@/components/auth-provider'
+import { db } from '@/lib/firebase'
+import { doc, getDoc } from 'firebase/firestore'
+import { useEffect } from 'react'
 
 type FilterType = 'all' | 'nearby' | 'remote' | 'urgent'
 
@@ -91,6 +95,32 @@ const allRequests = [
 
 export default function VolunteerRequestsPage() {
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
+  const { user: firebaseUser } = useAuth()
+  const [userData, setUserData] = useState<any>(null)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (firebaseUser) {
+        try {
+          const docRef = doc(db, "volunteers", firebaseUser.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setUserData(docSnap.data());
+          }
+        } catch (error) {
+          console.error("Error fetching volunteer data:", error);
+        }
+      }
+    };
+    if (mounted) fetchUserData();
+  }, [firebaseUser, mounted]);
+
+  if (!mounted) return null;
 
   const filteredRequests = activeFilter === 'all' 
     ? allRequests 
@@ -100,7 +130,7 @@ export default function VolunteerRequestsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <DashboardSidebar type="volunteer" userName="Alex Rivera" userId="Level 12 Hero" />
+      <DashboardSidebar type="volunteer" userName={userData?.fullName || "Volunteer"} userId={userData?.uid?.substring(0, 8).toUpperCase() || "..." } />
       
       <main className="lg:ml-64 min-h-screen">
         {/* Header */}

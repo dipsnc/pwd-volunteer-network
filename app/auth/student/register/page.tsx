@@ -6,8 +6,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowRight, Upload, FileCheck, Plus, X, Camera, User, Lock, Phone, Mail, MapPin } from "lucide-react";
 import { useAccessibility } from "@/components/accessibility-provider";
-import { saveStudent, generateId, setCurrentUser } from "@/lib/store";
+import { saveStudent, setCurrentUser } from "@/lib/store";
 import { toast } from "sonner";
+import { auth, db } from "@/lib/firebase";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, setDoc } from "firebase/firestore";
 
 const DISABILITY_TYPES = [
   "Visual Impairment", "Hearing Impairment", "Locomotor Disability",
@@ -24,6 +27,7 @@ export default function StudentRegisterPage() {
   const govDocRef = useRef<HTMLInputElement>(null);
   const collegeIdRef = useRef<HTMLInputElement>(null);
   const photoRef = useRef<HTMLInputElement>(null);
+  const [loading, setLoading] = useState(false);
 
   // Step 1: Basic Info
   const [fullName, setFullName] = useState("");
@@ -113,26 +117,69 @@ export default function StudentRegisterPage() {
     speak(`Back to Step ${step - 1}`);
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!disabilityType) {
       toast.error("Selection Missing", { description: "Please select your disability type." });
       return;
     }
-    const user = {
-      id: generateId(), type: 'student' as const, fullName, phone, email, address,
-      govDocName: govDoc?.name, motherName, fatherName, guardianName,
-      parentPhones: parentPhones.filter(Boolean), parentEmails: parentEmails.filter(Boolean),
-      bloodGroup, age, weight, height, enrolledInCollege, courseDetails,
-      collegeIdName: collegeId?.name, photoName: photo?.name,
-      username, password, disabilityType, createdAt: new Date().toISOString()
-    };
-    saveStudent(user);
-    setCurrentUser(user);
-    toast.success("Account Created!", {
-      description: "Welcome to the community, " + fullName + "!",
-    });
-    speak("Registration complete! Welcome " + fullName);
-    router.push("/auth/welcome");
+
+    setLoading(true);
+    try {
+      // Create Firebase user
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+
+      const userData = {
+        uid: firebaseUser.uid,
+        type: 'student' as const,
+        fullName,
+        phone,
+        email,
+        address,
+        govDocName: govDoc?.name,
+        motherName,
+        fatherName,
+        guardianName,
+        parentPhones: parentPhones.filter(Boolean),
+        parentEmails: parentEmails.filter(Boolean),
+        bloodGroup,
+        age,
+        weight,
+        height,
+        enrolledInCollege,
+        courseDetails,
+        collegeIdName: collegeId?.name,
+        photoName: photo?.name,
+        username,
+        disabilityType,
+        createdAt: new Date().toISOString()
+      };
+
+      // Save to Firestore
+      const cleanData = JSON.parse(JSON.stringify(userData, (key, value) => 
+  value === undefined ? null : value
+));
+
+// Now call setDoc with cleanData
+await setDoc(doc(db, "students", firebaseUser.uid), cleanData);
+
+      // Legacy support (optional, but keeps existing pages working if they use lib/store)
+      saveStudent({ ...userData, id: firebaseUser.uid, password }); 
+      setCurrentUser({ ...userData, id: firebaseUser.uid, password });
+
+      toast.success("Account Created!", {
+        description: "Welcome to the community, " + fullName + "!",
+      });
+      speak("Registration complete! Welcome " + fullName);
+      router.push("/auth/welcome");
+    } catch (error: any) {
+      console.error("Registration error:", error);
+      toast.error("Registration Failed", {
+        description: error.message || "Something went wrong. Please try again.",
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const inputCls = "w-full px-4 py-3 rounded-xl border-2 border-border bg-background text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none transition-colors";
@@ -424,10 +471,11 @@ export default function StudentRegisterPage() {
                 whileHover={{ scale: 1.05 }} 
                 whileTap={{ scale: 0.95 }} 
                 onClick={handleSubmit}
-                className="flex items-center gap-2 px-8 py-3.5 rounded-xl bg-primary text-white font-display font-bold text-sm shadow-lg hover:bg-primary/90 transition-all"
-                aria-label="Finish and complete registration"
+                disabled={loading}
+                className="flex items-center gap-2 px-8 py-3.5 rounded-xl bg-primary text-white font-display font-bold text-sm shadow-lg hover:bg-primary/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                aria-label={loading ? "Completing registration..." : "Finish and complete registration"}
               >
-                Complete Registration
+                {loading ? "Registering..." : "Complete Registration"}
               </motion.button>
             )}
           </div>

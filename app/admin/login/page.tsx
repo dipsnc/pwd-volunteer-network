@@ -16,17 +16,19 @@ export default function AdminLoginPage() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
     
-    // Demo login - accept any credentials
-    if (email && password) {
+    const ADMIN_EMAIL = 'admin@assistly.com'
+    const ADMIN_PASS = 'admin123'
+
+    if (email === ADMIN_EMAIL && password === ADMIN_PASS) {
       localStorage.setItem('user', JSON.stringify({
         type: 'admin',
         email,
-        name: 'Admin User'
+        name: 'Super Admin'
       }))
       playSound('success')
       router.push('/dashboard/admin')
     } else {
-      setError('Please enter both email and password')
+      setError('Invalid admin credentials. Hint: admin@assistly.com / admin123')
       playSound('error')
     }
   }

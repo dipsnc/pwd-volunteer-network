@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { DashboardSidebar } from '@/components/dashboard-sidebar'
 import { Search, Bell, Settings, CheckCircle, FileWarning, Clock, Calendar, FileText, Home, MoreHorizontal, MapPin, Phone, Users, ShieldCheck, BookOpen } from 'lucide-react'
-import { getVolunteerRequests, getCurrentUser, type VolunteerRequest } from '@/lib/store'
+import { getVolunteerRequests, type VolunteerRequest } from '@/lib/store'
 import RequestVolunteerCard from '@/components/request-volunteer-card'
 import VolunteerRequestCard from '@/components/volunteer-request-card'
 import VolunteerRequestForm from '@/components/volunteer-request-form'
@@ -12,6 +12,11 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import {motion, AnimatePresence} from 'framer-motion'
 import { cn } from '@/lib/utils'
+import dynamic from 'next/dynamic'
+import { getBrowserLocation } from '@/lib/location'
+import { useAuth } from '@/components/auth-provider'
+import { db } from '@/lib/firebase'
+import { doc, getDoc } from 'firebase/firestore'
 
 const MOCK_REQUESTS: VolunteerRequest[] = [
   {
@@ -54,29 +59,45 @@ export default function StudentDashboardPage() {
   const [selectedRequest, setSelectedRequest] = useState<VolunteerRequest | undefined>(undefined)
   const [selectedStatusRequestId, setSelectedStatusRequestId] = useState<string | null>(null)
   const [requests, setRequests] = useState<VolunteerRequest[]>([])
-  const [user, setUser] = useState<ReturnType<typeof getCurrentUser>>(null)
+  const { user: firebaseUser, loading: authLoading } = useAuth()
+  const [userData, setUserData] = useState<any>(null)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setMounted(true)
-    const currentUser = getCurrentUser()
-    setUser(currentUser)
   }, [])
 
   useEffect(() => {
-    if (user) {
-      const userRequests = getVolunteerRequests().filter(r => r.studentId === user.id)
+    const fetchUserData = async () => {
+      if (firebaseUser) {
+        try {
+          const docRef = doc(db, "students", firebaseUser.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setUserData({ ...docSnap.data(), id: firebaseUser.uid });
+          }
+        } catch (error) {
+          console.error("Error fetching user data:", error);
+        }
+      }
+    };
+    if (mounted) fetchUserData();
+  }, [firebaseUser, mounted]);
+
+  useEffect(() => {
+    if (userData) {
+      const userRequests = getVolunteerRequests().filter(r => r.studentId === userData.uid || r.studentId === userData.id)
       const combined = [...MOCK_REQUESTS, ...userRequests]
       setRequests(combined)
       if (combined.length > 0 && !selectedStatusRequestId) {
         setSelectedStatusRequestId(combined[0].id)
       }
     }
-  }, [user?.id])
+  }, [userData?.id, userData?.uid])
 
   const refreshRequests = () => {
-    if (user) {
-      const userRequests = getVolunteerRequests().filter(r => r.studentId === user.id)
+    if (userData) {
+      const userRequests = getVolunteerRequests().filter(r => r.studentId === userData.uid || r.studentId === userData.id)
       const combined = [...MOCK_REQUESTS, ...userRequests]
       setRequests(combined)
       if (combined.length > 0 && !selectedStatusRequestId) {
@@ -91,24 +112,35 @@ export default function StudentDashboardPage() {
     setSelectedRequest(request)
     setShowRequestForm(true)
   }
+const [userLoc, setUserLoc] = useState({ lat: 19.0760, lng: 72.8777 }); // Default
+useEffect(() => {
+  getBrowserLocation().then(coords => setUserLoc(coords)).catch(console.error);
+}, []);
+
+const MiniMap = dynamic(() => import('@/components/minimap'), { 
+  ssr: false,
+  loading: () => <div className="h-full w-full bg-muted animate-pulse" /> 
+})
 
   if (!mounted) return <div className="min-h-screen bg-background" />
 
   const selectedReqForStatus = requests.find(r => r.id === selectedStatusRequestId);
 
+  
+
+
+
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <DashboardSidebar type="student" userName={user?.fullName || "Student"} userId={user?.id?.substring(0, 8).toUpperCase()} />
+      <DashboardSidebar type="student" userName={userData?.fullName || "Student"} userId={userData?.uid?.substring(0, 8).toUpperCase() || "..." } />
       
       <main className="lg:ml-64 min-h-screen">
         {/* Header */}
-        <header className="sticky top-0 z-30 bg-card/80 backdrop-blur-md border-b border-border px-8 py-5">
+        <header className="sticky top-0 z-30 bg-card border-b border-border px-6 py-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-display font-bold text-foreground">
-                Welcome back, {user?.fullName?.split(' ')[0] || "Student"}
-              </h1>
-              <p className="text-muted-foreground font-medium">Manage your requests and campus support.</p>
+            <div className="lg:ml-0 ml-12">
+              <h1 className="text-2xl font-bold text-foreground">Welcome back, {userData?.fullName?.split(' ')[0] || "Student"}</h1>
+              <p className="text-muted-foreground">Manage your requests and campus support.</p>
             </div>
             <div className="flex items-center gap-6">
               <div className="hidden md:flex items-center gap-2 bg-muted/50 rounded-2xl px-5 py-2.5 border border-border/50">
@@ -116,12 +148,19 @@ export default function StudentDashboardPage() {
                 <input 
                   type="text" 
                   placeholder="Search requests..." 
-                  className="bg-transparent border-none outline-none text-sm w-48 font-medium"
+                  className="bg-transparent border-none outline-none text-sm w-40"
                 />
               </div>
+              <button className="p-2 rounded-xl hover:bg-muted transition-colors">
+                <Bell className="w-5 h-5 text-muted-foreground" />
+              </button>
+              <button className="p-2 rounded-xl hover:bg-muted transition-colors">
+                <Settings className="w-5 h-5 text-muted-foreground" />
+              </button>
             </div>
           </div>
         </header>
+
 
         <div className="p-8 space-y-10">
           {/* Top Actions Section */}
@@ -247,12 +286,11 @@ export default function StudentDashboardPage() {
             {/* Right Column / Quick Help */}
             <div className="space-y-8">
               {/* Campus Location */}
-              <div className="bg-card rounded-3xl p-8 border border-border shadow-soft overflow-hidden relative">
+              <div className="bg-card rounded-3xl p-8 border border-border shadow-soft overflow-hidden relative z-10">
                 <h3 className="font-display font-black text-foreground uppercase tracking-wider mb-6">Current Location</h3>
-                <div className="aspect-square bg-muted rounded-2xl mb-6 flex items-center justify-center overflow-hidden relative group">
-                  <div className="absolute inset-0 bg-[url('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png')] bg-cover bg-center grayscale group-hover:grayscale-0 transition-all duration-700" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-background/80 to-transparent" />
-                  <div className="z-10 w-6 h-6 bg-primary rounded-full shadow-lg animate-pulse ring-4 ring-primary/20" />
+                <div className="aspect-square bg-muted rounded-2xl mb-6 overflow-hidden relative group">
+                  <MiniMap lat={userLoc.lat} lng={userLoc.lng} />
+                  <div className="absolute inset-0 bg-gradient-to-t from-background/40 to-transparent pointer-events-none" />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>

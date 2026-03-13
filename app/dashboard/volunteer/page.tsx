@@ -4,6 +4,10 @@ import { useState } from 'react'
 import Image from 'next/image'
 import { DashboardSidebar } from '@/components/dashboard-sidebar'
 import { Search, Bell, Settings, Star, Award, Clock, TrendingUp, MapPin, Wifi, Home, PawPrint, Plus, Trophy, Shield, HeartHandshake } from 'lucide-react'
+import { useAuth } from '@/components/auth-provider'
+import { db } from '@/lib/firebase'
+import { doc, getDoc } from 'firebase/firestore'
+import { useEffect } from 'react'
 
 const stats = [
   { label: 'Total Points', value: '2,450', icon: Star, badge: '+12% this mo', badgeColor: 'bg-primary/10 text-primary' },
@@ -70,10 +74,36 @@ const certifications = [
 
 export default function VolunteerDashboardPage() {
   const [isAvailable, setIsAvailable] = useState(true)
+  const { user: firebaseUser } = useAuth()
+  const [userData, setUserData] = useState<any>(null)
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      if (firebaseUser) {
+        try {
+          const docRef = doc(db, "volunteers", firebaseUser.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setUserData(docSnap.data());
+          }
+        } catch (error) {
+          console.error("Error fetching volunteer data:", error);
+        }
+      }
+    };
+    if (mounted) fetchUserData();
+  }, [firebaseUser, mounted]);
+
+  if (!mounted) return null;
 
   return (
     <div className="min-h-screen bg-background">
-      <DashboardSidebar type="volunteer" userName="Alex Rivera" userId="Level 12 Hero" />
+      <DashboardSidebar type="volunteer" userName={userData?.fullName || "Volunteer"} userId={userData?.uid?.substring(0, 8).toUpperCase() || "..." } />
       
       <main className="lg:ml-64 min-h-screen">
         {/* Header */}
@@ -99,11 +129,13 @@ export default function VolunteerDashboardPage() {
               </button>
               <div className="flex items-center gap-3">
                 <div className="text-right hidden sm:block">
-                  <p className="text-sm font-medium text-foreground">Alex Rivera</p>
-                  <p className="text-xs text-primary">Level 12 Hero</p>
+                  <p className="text-sm font-medium text-foreground">{userData?.fullName || "Volunteer"}</p>
+                  <p className="text-xs text-primary">Volunteer Hero</p>
                 </div>
                 <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <span className="text-sm font-semibold text-primary">AR</span>
+                  <span className="text-sm font-semibold text-primary">
+                    {userData?.fullName?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || "V"}
+                  </span>
                 </div>
               </div>
             </div>
