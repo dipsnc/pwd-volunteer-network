@@ -7,6 +7,9 @@ import { motion, AnimatePresence } from "framer-motion"
 import { getCurrentUser } from "@/lib/store"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { useAuth } from "@/components/auth-provider"
+import { db } from "@/lib/firebase"
+import { doc, getDoc } from "firebase/firestore"
 
 interface Notification {
   id: string
@@ -53,12 +56,26 @@ const MOCK_NOTIFICATIONS: Notification[] = [
 ]
 
 export default function NotificationsPage() {
+  const { user: firebaseUser } = useAuth()
   const [user, setUser] = useState<any>(null)
   const [notifications, setNotifications] = useState<Notification[]>(MOCK_NOTIFICATIONS)
 
   useEffect(() => {
-    setUser(getCurrentUser())
-  }, [])
+    const fetchUser = async () => {
+      if (firebaseUser) {
+        try {
+          const docRef = doc(db, "students", firebaseUser.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setUser({ ...docSnap.data(), uid: firebaseUser.uid });
+          }
+        } catch (error) {
+          console.error("Error fetching user:", error);
+        }
+      }
+    };
+    fetchUser();
+  }, [firebaseUser])
 
   const markAsRead = (id: string) => {
     setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n))
@@ -72,8 +89,8 @@ export default function NotificationsPage() {
     <div className="flex min-h-screen bg-background text-foreground font-sans">
       <DashboardSidebar 
         type="student" 
-        userName={user?.fullName} 
-        userId={user?.id}
+        userName={user?.fullName || "Student"} 
+        userId={firebaseUser?.uid}
       />
 
       <main className="flex-1 lg:ml-64">

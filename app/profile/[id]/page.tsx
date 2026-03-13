@@ -2,35 +2,152 @@
 
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { motion } from "framer-motion"
-import { ArrowLeft, User, Mail, Phone, MapPin, Calendar, Award, BookOpen, ShieldCheck } from "lucide-react"
-import { getStudents, getVolunteers, type StudentUser, type VolunteerUser } from "@/lib/store"
-import CalmCard from "@/components/calm-card"
+import { motion, AnimatePresence } from "framer-motion"
+import { 
+  ArrowLeft, User, Mail, Phone, MapPin, Calendar, Award, 
+  BookOpen, ShieldCheck, Settings, Star, MessageSquare, 
+  Clock, Heart, GraduationCap, Trash2
+} from "lucide-react"
+import { DashboardSidebar } from "@/components/dashboard-sidebar"
+import { useAuth } from "@/components/auth-provider"
+import { db } from "@/lib/firebase"
+import { 
+  doc, getDoc, collection, query, where, 
+  onSnapshot, addDoc, serverTimestamp, deleteDoc,
+  orderBy
+} from "firebase/firestore"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import CalmButton from "@/components/calm-button"
+import CalmCard from "@/components/calm-card"
 import { Spinner } from "@/components/ui/spinner"
 import { cn } from "@/lib/utils"
+import { toast } from "sonner"
 
-export default function PublicProfilePage() {
+type TabType = 'about' | 'education' | 'reviews' | 'location'
+
+export default function UniversalProfilePage() {
   const params = useParams()
   const router = useRouter()
-  const [profile, setProfile] = useState<StudentUser | VolunteerUser | null>(null)
+  const { user: firebaseUser } = useAuth()
+  const [profile, setProfile] = useState<any>(null)
+  const [viewerData, setViewerData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState<TabType>('about')
+  const [stats, setStats] = useState({ missions: 0, hours: 0 })
+  const [comments, setComments] = useState<any[]>([])
+  const [newComment, setNewComment] = useState("")
+
+  const userId = params.id as string
+  const isOwner = firebaseUser?.uid === userId
 
   useEffect(() => {
-    const userId = params.id as string
-    const student = getStudents().find(s => s.id === userId)
-    const volunteer = getVolunteers().find(v => v.id === userId)
-    
-    setProfile(student || volunteer || null)
-    setLoading(false)
-  }, [params.id])
+    const fetchProfile = async () => {
+      try {
+        // Try students collection
+        let docRef = doc(db, "students", userId)
+        let docSnap = await getDoc(docRef)
+        
+        if (docSnap.exists()) {
+          setProfile({ ...docSnap.data(), id: docSnap.id, type: 'student' })
+        } else {
+          // Try volunteers collection
+          docRef = doc(db, "volunteers", userId)
+          docSnap = await getDoc(docRef)
+          if (docSnap.exists()) {
+            setProfile({ ...docSnap.data(), id: docSnap.id, type: 'volunteer' })
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching profile:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    if (userId) fetchProfile()
+  }, [userId])
+
+  useEffect(() => {
+    if (!profile || profile.type !== 'volunteer') return
+
+    const q = query(
+      collection(db, "applications"),
+      where("volunteerId", "==", userId),
+      where("status", "==", "completed")
+    )
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const completedMissions = snapshot.size
+      // Rough calc: each mission is 2 hours for now
+      setStats({ missions: completedMissions, hours: completedMissions * 2 })
+    })
+
+    return () => unsubscribe()
+  }, [profile, userId])
+
+  useEffect(() => {
+    if (!userId) return
+
+    const q = query(
+      collection(db, "comments"),
+      where("profileId", "==", userId),
+      orderBy("createdAt", "desc")
+    )
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setComments(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })))
+    })
+
+    return () => unsubscribe()
+  }, [userId])
+
+  const handleAddComment = async () => {
+    if (!firebaseUser || !newComment.trim()) return
+
+    try {
+      // Get viewer name for comment
+      let viewerName = firebaseUser.displayName || "Anonymous"
+      const studentRef = doc(db, "students", firebaseUser.uid)
+      const studentSnap = await getDoc(studentRef)
+      if (studentSnap.exists()) {
+        viewerName = studentSnap.data().fullName
+      } else {
+        const volunteerRef = doc(db, "volunteers", firebaseUser.uid)
+        const volunteerSnap = await getDoc(volunteerRef)
+        if (volunteerSnap.exists()) {
+          viewerName = volunteerSnap.data().fullName
+        }
+      }
+
+      await addDoc(collection(db, "comments"), {
+        profileId: userId,
+        authorId: firebaseUser.uid,
+        authorName: viewerName,
+        content: newComment.trim(),
+        createdAt: serverTimestamp()
+      })
+      setNewComment("")
+      toast.success("Comment posted!")
+    } catch (error) {
+      console.error("Error posting comment:", error)
+      toast.error("Failed to post comment")
+    }
+  }
+
+  const handleDeleteComment = async (commentId: string) => {
+    try {
+      await deleteDoc(doc(db, "comments", commentId))
+      toast.success("Comment deleted")
+    } catch (error) {
+      toast.error("Failed to delete comment")
+    }
+  }
 
   if (loading) return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center gap-4">
       <Spinner className="w-12 h-12 text-primary" />
-      <p className="font-display font-bold text-muted-foreground animate-pulse uppercase tracking-widest text-xs">Loading Profile...</p>
+      <p className="font-display font-bold text-muted-foreground animate-pulse uppercase tracking-widest text-xs">Accessing Profile...</p>
     </div>
   )
 
@@ -39,179 +156,312 @@ export default function PublicProfilePage() {
       <div className="w-20 h-20 bg-destructive/10 rounded-3xl flex items-center justify-center mb-6 text-destructive">
         <User size={40} />
       </div>
-      <h1 className="text-4xl font-display font-black text-foreground mb-4 uppercase tracking-tight">User Not Found</h1>
-      <p className="text-muted-foreground mb-10 max-w-md mx-auto font-medium">The profile you are looking for doesn't exist or has been removed from our network.</p>
-      <CalmButton onClick={() => router.back()} variant="outline" className="px-10">
-        Go Back
-      </CalmButton>
+      <h1 className="text-4xl font-display font-black text-foreground mb-4 uppercase tracking-tight">Record Not Found</h1>
+      <p className="text-muted-foreground mb-10 max-w-md mx-auto font-medium">This profile is private or does not exist in our volunteer network.</p>
+      <CalmButton onClick={() => router.back()} variant="outline" className="px-10">Go Back</CalmButton>
     </div>
   )
 
   const isStudent = profile.type === 'student'
 
-  return (
-    <div className="min-h-screen bg-background text-foreground selection:bg-primary selection:text-primary-foreground">
-      <div className="max-w-4xl mx-auto px-6 py-12">
-        <CalmButton 
-          variant="outline"
-          onClick={() => router.back()} 
-          className="mb-12 border-none px-4 py-2 hover:bg-muted"
-          icon={<ArrowLeft size={16} />}
-          audioLabel="Go back to dashboard"
-        >
-          Back to Dashboard
-        </CalmButton>
+  const tabs: { id: TabType, label: string, icon: any }[] = [
+    { id: 'about', label: 'About', icon: User },
+    { id: 'education', label: 'Education', icon: GraduationCap },
+    { id: 'reviews', label: 'Reviews', icon: MessageSquare },
+    { id: 'location', label: 'Location', icon: MapPin },
+  ]
 
-        <div className="relative">
-          {/* Header Card */}
-          <CalmCard className="p-10 mb-8 border-none bg-card/40 backdrop-blur-2xl shadow-elevated overflow-hidden">
-            <div className="flex flex-col md:flex-row items-center gap-8 relative z-10">
-              <Avatar className="w-32 h-32 border-4 border-background shadow-soft">
-                <AvatarFallback className="bg-primary text-primary-foreground text-4xl font-black">
-                  {profile.fullName.substring(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-              
-              <div className="flex-1 text-center md:text-left">
-                <div className="flex flex-col md:flex-row md:items-center gap-3 mb-2">
-                  <h1 className="text-5xl font-display font-black tracking-tighter text-foreground leading-[0.9]">{profile.fullName}</h1>
+  return (
+    <div className="min-h-screen bg-background">
+      <DashboardSidebar 
+        type={firebaseUser ? (isStudent ? 'student' : 'volunteer') : 'volunteer'} 
+        userName={profile.fullName} 
+        userId={firebaseUser?.uid}
+      />
+
+      <main className="lg:ml-64 min-h-screen pb-12">
+        {/* Top Header/Banner */}
+        <div className="h-48 bg-gradient-to-r from-primary/20 via-primary/10 to-transparent relative group">
+           {isOwner && (
+             <button 
+              onClick={() => router.push(`/dashboard/${profile.type}/profile`)}
+              className="absolute top-6 right-6 p-3 bg-white/20 backdrop-blur-md rounded-2xl text-foreground hover:bg-white/40 transition-all shadow-elevated z-20 group-hover:scale-110"
+             >
+               <Settings className="w-6 h-6" />
+             </button>
+           )}
+        </div>
+
+        <div className="max-w-5xl mx-auto px-6 -mt-24 relative z-10">
+          {/* Main Profile Card */}
+          <CalmCard className="p-8 md:p-12 border-none bg-card/80 backdrop-blur-2xl shadow-elevated rounded-[40px] overflow-hidden">
+            <div className="flex flex-col md:flex-row items-center md:items-start gap-10">
+              <div className="relative group/avatar">
+                <Avatar className="w-40 h-40 border-8 border-card shadow-soft ring-2 ring-primary/20 transition-transform duration-500 group-hover/avatar:scale-105">
+                  <AvatarFallback className="bg-primary text-primary-foreground text-5xl font-black">
+                    {profile.fullName?.substring(0, 2).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div className="absolute -bottom-2 -right-2 p-3 bg-primary rounded-2xl shadow-lg shadow-primary/30 text-white">
+                  {isStudent ? <Heart size={20} /> : <ShieldCheck size={20} />}
+                </div>
+              </div>
+
+              <div className="flex-1 text-center md:text-left pt-2">
+                <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4 justify-center md:justify-start">
+                  <h1 className="text-4xl md:text-5xl font-display font-black tracking-tighter text-foreground line-clamp-1">{profile.fullName}</h1>
                   <Badge className={cn(
-                    "px-3 py-1 text-[10px] font-black uppercase tracking-widest",
-                    isStudent ? "bg-primary/10 text-primary border-primary/20" : "bg-accent/10 text-accent-foreground border-accent/20"
+                    "px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] whitespace-nowrap",
+                    isStudent ? "bg-primary/20 text-primary border-primary/30" : "bg-blue-500/20 text-blue-600 border-blue-500/30"
                   )}>
-                     {isStudent ? "STUDENT" : "VOLUNTEER"}
+                    {isStudent ? "Individual Support" : "Impact Specialist"}
                   </Badge>
                 </div>
-                <p className="text-muted-foreground font-bold flex items-center justify-center md:justify-start gap-2 uppercase tracking-widest text-[10px] mt-1 opacity-70">
-                  <MapPin size={14} className="text-primary" /> Campus Location: Mumbai
-                </p>
-                <div className="flex flex-wrap justify-center md:justify-start gap-4 mt-8">
-                  <div className="px-5 py-2.5 bg-background/50 rounded-2xl border border-border/50 text-[11px] font-black uppercase tracking-widest shadow-soft flex items-center gap-2">
-                    <Calendar size={14} className="text-primary" /> Joined {new Date(profile.createdAt).getFullYear()}
+
+                <div className="flex flex-wrap justify-center md:justify-start gap-3 mt-4">
+                  <div className="flex items-center gap-2 px-4 py-2 bg-muted/40 rounded-xl text-xs font-bold text-muted-foreground border border-border/50">
+                    <MapPin size={14} className="text-primary" /> Mumbai, India
                   </div>
-                  {!isStudent && (
-                    <div className="px-5 py-2.5 bg-primary/10 rounded-2xl border border-primary/20 text-[11px] font-black text-primary uppercase tracking-widest shadow-soft flex items-center gap-2">
-                      <ShieldCheck size={14} /> VERIFIED VOLUNTEER
-                    </div>
+                  <div className="flex items-center gap-2 px-4 py-2 bg-muted/40 rounded-xl text-xs font-bold text-muted-foreground border border-border/50">
+                    <Calendar size={14} className="text-primary" /> Joined {new Date(profile.createdAt).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
+                  </div>
+                </div>
+
+                {/* Stats Bar */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+                  {isStudent ? (
+                    <>
+                      <StatItem label="Disability" value={profile.disabilityType} icon={ShieldCheck} />
+                      <StatItem label="Priority" value="High" icon={Star} />
+                      <StatItem label="Age" value={profile.age || "—"} icon={User} />
+                      <StatItem label="Blood" value={profile.bloodGroup || "—"} icon={Heart} />
+                    </>
+                  ) : (
+                    <>
+                      <StatItem label="Impact" value={`${stats.missions} Missions`} icon={Award} />
+                      <StatItem label="Experience" value={`${stats.hours} Hours`} icon={Clock} />
+                      <StatItem label="Rating" value="5.0" icon={Star} />
+                      <StatItem label="Reliability" value="98%" icon={ShieldCheck} />
+                    </>
                   )}
                 </div>
               </div>
             </div>
-
-            {/* Background Accent */}
-            <div className="absolute -right-20 -top-20 w-64 h-64 bg-primary/5 rounded-full blur-3xl" />
           </CalmCard>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {/* Left Sidebar */}
-            <div className="space-y-6">
-              <CalmCard className="p-8 border-border/50 bg-card/60">
-                <h3 className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] mb-8 border-b border-border/50 pb-4">Contact Information</h3>
-                <div className="space-y-6">
-                  <div className="flex items-center gap-4 group">
-                    <div className="w-12 h-12 rounded-2xl bg-muted/50 flex items-center justify-center text-muted-foreground group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-500 shadow-soft">
-                      <Mail size={20} />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black text-primary uppercase tracking-widest opacity-70">Email Address</p>
-                      <p className="text-sm font-bold text-foreground">{profile.email}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-4 group">
-                    <div className="w-12 h-12 rounded-2xl bg-muted/50 flex items-center justify-center text-muted-foreground group-hover:bg-primary group-hover:text-primary-foreground transition-all duration-500 shadow-soft">
-                      <Phone size={20} />
-                    </div>
-                    <div>
-                      <p className="text-[10px] font-black text-primary uppercase tracking-widest opacity-70">Phone Number</p>
-                      <p className="text-sm font-bold text-foreground">{profile.phone}</p>
-                    </div>
-                  </div>
-                </div>
-              </CalmCard>
+          {/* Tab Navigation */}
+          <div className="mt-12 flex items-center gap-2 overflow-x-auto pb-4 no-scrollbar border-b border-border/50 px-2">
+            {tabs.map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  "flex items-center gap-3 px-8 py-4 rounded-2xl text-sm font-bold transition-all shrink-0",
+                  activeTab === tab.id
+                  ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-105"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground active:scale-95"
+                )}
+              >
+                <tab.icon className="w-5 h-5" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
-              {isStudent && (
-                <div className="p-8 rounded-3xl bg-primary text-primary-foreground shadow-elevated relative overflow-hidden group">
-                  <div className="relative z-10">
-                    <h3 className="text-xs font-black uppercase tracking-[0.2em] mb-4 opacity-90">Support Profile</h3>
+          {/* Dynamic Content Area */}
+          <div className="mt-8 px-2">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                transition={{ duration: 0.3 }}
+              >
+                {activeTab === 'about' && (
+                  <CalmCard className="p-10 space-y-8 bg-card/60 backdrop-blur-xl border-border/40">
+                    <section>
+                      <h3 className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-4">Biography</h3>
+                      <p className="text-foreground/80 leading-relaxed font-medium">
+                        Dedicated {profile.type} focused on building a more accessible campus community. 
+                        Passionate about {isStudent ? "inclusive education" : "social impact"} and peer-to-peer support systems.
+                        Always looking for new ways to contribute to the university network.
+                      </p>
+                    </section>
+                    
+                    <section className="grid md:grid-cols-2 gap-8 pt-8 border-t border-border/30">
+                      <div>
+                        <h3 className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-4">Contact Details</h3>
+                        <div className="space-y-4">
+                          <ContactInfo icon={Mail} label="Email" value={profile.email} />
+                          <ContactInfo icon={Phone} label="Mobile" value={profile.phone} />
+                        </div>
+                      </div>
+                      <div>
+                        <h3 className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-4">Preferences</h3>
+                        <div className="flex flex-wrap gap-2">
+                          {isStudent ? (
+                            <>
+                              <Badge variant="outline">Sign Language</Badge>
+                              <Badge variant="outline">Note Taking</Badge>
+                              <Badge variant="outline">Evening Help</Badge>
+                            </>
+                          ) : (
+                            profile.skills?.split(',').map((s: string) => (
+                              <Badge key={s} variant="secondary" className="px-3 py-1 font-bold">{s.trim()}</Badge>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    </section>
+                  </CalmCard>
+                )}
+
+                {activeTab === 'education' && (
+                  <CalmCard className="p-10 space-y-8 bg-card/60 backdrop-blur-xl border-border/40">
+                    <div className="flex items-start gap-6">
+                       <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
+                          <GraduationCap className="w-8 h-8 text-primary" />
+                       </div>
+                       <div>
+                          <h3 className="text-2xl font-display font-black text-foreground mb-1">{isStudent ? "Current Curriculum" : "Academic Background"}</h3>
+                          <p className="text-muted-foreground font-bold">{isStudent ? profile.courseDetails : `${profile.course} • Year ${profile.year}`}</p>
+                          <p className="text-sm font-medium text-foreground/70 mt-4 leading-relaxed">
+                            Currently enrolled at {isStudent ? "Mumbai University" : profile.collegeName}. 
+                            Specializing in {isStudent ? "Arts & Humanities" : "Community Welfare"} with a focus on practical application.
+                          </p>
+                       </div>
+                    </div>
+                  </CalmCard>
+                )}
+
+                {activeTab === 'reviews' && (
+                  <div className="space-y-6">
+                    {/* Add Comment */}
+                    {firebaseUser && (
+                      <CalmCard className="p-6 border-primary/20 bg-primary/5">
+                        <div className="flex gap-4">
+                          <Avatar className="w-12 h-12 shadow-soft">
+                            <AvatarFallback className="bg-primary text-primary-foreground font-black">
+                              {firebaseUser.email?.substring(0, 2).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div className="flex-1 space-y-4">
+                            <textarea 
+                              placeholder="Write a message or testimonial..."
+                              className="w-full bg-background/50 border-2 border-border/50 rounded-2xl p-4 text-sm font-medium focus:border-primary outline-none transition-all resize-none min-h-[100px]"
+                              value={newComment}
+                              onChange={(e) => setNewComment(e.target.value)}
+                            />
+                            <div className="flex justify-end">
+                              <CalmButton 
+                                onClick={handleAddComment}
+                                disabled={!newComment.trim()}
+                                className="px-8 py-3 rounded-xl shadow-lg shadow-primary/20"
+                              >
+                                Post Message
+                              </CalmButton>
+                            </div>
+                          </div>
+                        </div>
+                      </CalmCard>
+                    )}
+
+                    {/* Comments List */}
                     <div className="space-y-4">
-                      <p className="text-lg font-display font-black flex items-center gap-2">
-                        <ShieldCheck size={20} /> {(profile as StudentUser).disabilityType}
-                      </p>
-                      <p className="text-xs leading-relaxed font-medium opacity-90">
-                        Looking for dedicated assistance with note-taking, complex campus navigation, and exam support.
-                      </p>
-                    </div>
-                  </div>
-                  <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-white/10 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-700" />
-                </div>
-              )}
-            </div>
-
-            {/* Center Content */}
-            <div className="md:col-span-2 space-y-8">
-              <CalmCard className="p-10 border-border/50 bg-card/60">
-                <h3 className="text-2xl font-display font-black text-foreground mb-8 flex items-center gap-3 uppercase tracking-tighter">
-                   <BookOpen className="text-primary" /> 
-                   {isStudent ? "Course & Curriculum" : "Skills & Capability"}
-                </h3>
-                
-                {isStudent ? (
-                  <div className="space-y-6">
-                    <div className="p-5 rounded-2xl bg-muted/30 border border-border/50">
-                       <p className="text-sm font-black text-muted-foreground uppercase tracking-wider mb-2">Current Curriculum</p>
-                       <p className="text-foreground font-bold leading-relaxed">
-                         {(profile as StudentUser).courseDetails}
-                       </p>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                       <div className="p-4 rounded-xl bg-background border border-border/50">
-                          <p className="text-[10px] font-black text-muted-foreground uppercase">College Status</p>
-                          <p className="text-sm font-bold">{(profile as StudentUser).enrolledInCollege ? "Enrolled" : "Not Enrolled"}</p>
-                       </div>
-                       <div className="p-4 rounded-xl bg-background border border-border/50">
-                          <p className="text-[10px] font-black text-muted-foreground uppercase">Blood Group</p>
-                          <p className="text-sm font-bold">{(profile as StudentUser).bloodGroup}</p>
-                       </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-6">
-                    <div className="p-5 rounded-2xl bg-muted/30 border border-border/50">
-                       <p className="text-sm font-black text-muted-foreground uppercase tracking-wider mb-3">Skills</p>
-                       <div className="flex flex-wrap gap-2">
-                         {(profile as VolunteerUser).skills.split(',').map(skill => (
-                           <Badge key={skill} variant="secondary" className="bg-background text-foreground hover:bg-primary hover:text-primary-foreground transition-colors cursor-default">
-                             {skill.trim()}
-                           </Badge>
-                         ))}
-                       </div>
-                    </div>
-                    <div className="p-5 rounded-2xl bg-muted/30 border border-border/50">
-                       <p className="text-sm font-black text-muted-foreground uppercase tracking-wider mb-2">University Affiliation</p>
-                       <p className="text-foreground font-bold">{(profile as VolunteerUser).collegeName}</p>
-                       <p className="text-xs text-muted-foreground mt-1">{(profile as VolunteerUser).course} • Year {(profile as VolunteerUser).year}</p>
+                      {comments.length === 0 ? (
+                        <div className="text-center py-20 bg-card/30 rounded-[40px] border-2 border-dashed border-border/50">
+                          <MessageSquare className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
+                          <p className="text-muted-foreground font-bold">No messages yet. Be the first to say something!</p>
+                        </div>
+                      ) : (
+                        comments.map(comment => (
+                          <motion.div 
+                            key={comment.id}
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                          >
+                            <CalmCard className="p-6 relative group/comment">
+                              <div className="flex gap-4">
+                                <Avatar className="w-12 h-12 shadow-soft">
+                                  <AvatarFallback className="bg-muted text-muted-foreground font-black">
+                                    {comment.authorName?.substring(0, 2).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <h4 className="font-bold text-foreground text-sm">{comment.authorName}</h4>
+                                    <span className="text-[10px] text-muted-foreground font-black uppercase">
+                                      {comment.createdAt?.toDate().toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                  <p className="text-sm font-medium text-foreground/80 leading-relaxed">{comment.content}</p>
+                                </div>
+                              </div>
+                              
+                              {(isOwner || firebaseUser?.uid === comment.authorId) && (
+                                <button 
+                                  onClick={() => handleDeleteComment(comment.id)}
+                                  className="absolute top-4 right-4 p-2 text-muted-foreground hover:text-destructive opacity-0 group-hover/comment:opacity-100 transition-all"
+                                >
+                                  <Trash2 size={14} />
+                                </button>
+                              )}
+                            </CalmCard>
+                          </motion.div>
+                        ))
+                      )}
                     </div>
                   </div>
                 )}
-              </CalmCard>
 
-              {/* Badges/Achievements Section */}
-              <CalmCard className="p-8">
-                <h3 className="text-xl font-display font-black text-foreground mb-6 flex items-center gap-3">
-                   <Award className="text-primary" /> Badges & Achievements
-                </h3>
-                <div className="grid grid-cols-4 gap-4">
-                   {[1, 2, 3, 4].map(b => (
-                     <div key={b} className="aspect-square rounded-2xl bg-muted animate-pulse border border-border/50 flex items-center justify-center">
-                        <div className="w-8 h-8 rounded-full bg-background opacity-50" />
-                     </div>
-                   ))}
-                </div>
-                <p className="text-center text-xs text-muted-foreground mt-6 font-medium">Achievements will unlock as they complete community tasks.</p>
-              </CalmCard>
-            </div>
+                {activeTab === 'location' && (
+                  <CalmCard className="p-10 bg-card/60 backdrop-blur-xl">
+                    <div className="flex items-start gap-4 mb-6">
+                      <div className="p-3 bg-primary/10 rounded-xl">
+                        <MapPin className="text-primary w-6 h-6" />
+                      </div>
+                      <div>
+                        <h3 className="text-2xl font-display font-black text-foreground">Operational Area</h3>
+                        <p className="text-muted-foreground font-bold">Mumbai Metropolitan Region (MMR)</p>
+                      </div>
+                    </div>
+                    <div className="aspect-video bg-muted/50 rounded-[32px] border-2 border-dashed border-border/50 flex flex-col items-center justify-center gap-4 group">
+                       <MapPin className="w-12 h-12 text-muted-foreground/50 group-hover:scale-110 transition-transform" />
+                       <p className="text-xs font-black text-muted-foreground uppercase tracking-widest">MAP VIEW COMING SOON</p>
+                    </div>
+                  </CalmCard>
+                )}
+              </motion.div>
+            </AnimatePresence>
           </div>
         </div>
+      </main>
+    </div>
+  )
+}
+
+function StatItem({ label, value, icon: Icon }: any) {
+  return (
+    <div className="p-4 bg-muted/30 rounded-2xl border border-border/50 hover:bg-muted/50 transition-colors">
+      <div className="flex items-center gap-2 mb-1">
+        <Icon size={14} className="text-primary" />
+        <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">{label}</span>
+      </div>
+      <p className="text-lg font-bold text-foreground line-clamp-1">{value || "—"}</p>
+    </div>
+  )
+}
+
+function ContactInfo({ icon: Icon, label, value }: any) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="w-10 h-10 rounded-xl bg-background border border-border/50 flex items-center justify-center text-primary shadow-soft">
+        <Icon size={18} />
+      </div>
+      <div>
+        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">{label}</p>
+        <p className="text-sm font-bold text-foreground">{value}</p>
       </div>
     </div>
   )

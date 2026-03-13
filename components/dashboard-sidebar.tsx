@@ -105,11 +105,18 @@ export function DashboardSidebar({ type, userName, userId, userAvatar }: Dashboa
         {/* Navigation */}
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {links.map((link) => {
-            const isActive = pathname === link.href
+            let href = link.href;
+            
+            // Handle dynamic profile link
+            if (link.label === 'Profile' && userId) {
+              href = `/profile/${userId}`;
+            }
+
+            const isActive = pathname === href
             return (
               <Link
-                key={link.href}
-                href={link.href}
+                key={link.label}
+                href={href}
                 onClick={() => setIsOpen(false)}
                 className={cn(
                   "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors",
@@ -160,7 +167,7 @@ export function DashboardSidebar({ type, userName, userId, userAvatar }: Dashboa
               </div>
               <div>
                 <p className="text-sm font-medium text-foreground">{userName}</p>
-                {userId && <p className="text-xs text-muted-foreground">ID: {userId}</p>}
+                {userId && <p className="text-[10px] text-muted-foreground font-black uppercase opacity-60">ID: {userId.substring(0, 8).toUpperCase()}</p>}
               </div>
             </div>
           </div>

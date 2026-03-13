@@ -76,6 +76,8 @@ export interface VolunteerRequest {
   status: 'open' | 'assigned' | 'completed';
   volunteerId?: string;
   volunteerName?: string;
+  points?: number;
+  duration?: string;
   createdAt: string;
 }
 

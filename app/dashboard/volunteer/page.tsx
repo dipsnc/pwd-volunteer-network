@@ -3,79 +3,63 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import { DashboardSidebar } from '@/components/dashboard-sidebar'
-import { Search, Bell, Settings, Star, Award, Clock, TrendingUp, MapPin, Wifi, Home, PawPrint, Plus, Trophy, Shield, HeartHandshake } from 'lucide-react'
+import { Search, Bell, Settings, Star, Award, Clock, TrendingUp, MapPin, Wifi, Home, PawPrint, Plus, Trophy, Shield, HeartHandshake, CheckCircle2, Navigation, Calendar, Timer, User, MoreVertical, Edit2, Trash2 } from 'lucide-react'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { deleteDoc } from 'firebase/firestore'
+import VolunteerApplicationModal from '@/components/volunteer-application-modal'
+import VolunteerApplicationCard from '@/components/volunteer-application-card'
+import VolunteerOpportunityCard from '@/components/volunteer-opportunity-card'
 import { useAuth } from '@/components/auth-provider'
 import { db } from '@/lib/firebase'
-import { doc, getDoc } from 'firebase/firestore'
+import { collection, query, where, onSnapshot, getDoc, doc, limit, orderBy } from 'firebase/firestore'
 import { useEffect } from 'react'
 
-const stats = [
-  { label: 'Total Points', value: '2,450', icon: Star, badge: '+12% this mo', badgeColor: 'bg-primary/10 text-primary' },
-  { label: 'Badges Earned', value: '12', icon: Award, badge: '+2 new', badgeColor: 'bg-primary/10 text-primary' },
-  { label: 'Hours Volunteered', value: '86.5', icon: Clock, badge: '8h today', badgeColor: 'bg-muted text-muted-foreground' },
-  { label: 'Global Rank', value: '#412', icon: TrendingUp, badge: 'Top 5%', badgeColor: 'bg-primary/10 text-primary' },
-]
-
-const opportunities = [
+const MOCK_OPPORTUNITIES = [
   {
     id: 1,
     title: 'Community Garden Mulching',
     description: 'Help prepare our community gardens for the spring season. All tools provided.',
-    points: 350,
     duration: '3 hours',
-    location: 'Downtown Hub',
+    location: { address: 'Downtown Hub, City Center', lat: 0, lng: 0 },
     locationType: 'physical',
-    image: '/images/garden-work.jpg',
   },
   {
     id: 2,
     title: 'Senior Tech Support',
     description: 'Help seniors navigate video calls and basic tablet settings from the comfort...',
-    points: 150,
     duration: '1 hour',
-    location: 'Remote Support',
+    location: { address: 'Remote Support, Digital', lat: 0, lng: 0 },
     locationType: 'remote',
-    image: '/images/tech-support.jpg',
   },
   {
     id: 3,
     title: 'Food Bank Sorting',
     description: 'Assist with organizing incoming food donations and preparing distribution...',
-    points: 450,
     duration: '4 hours',
-    location: 'West Side Center',
+    location: { address: 'West Side Center, Campus', lat: 0, lng: 0 },
     locationType: 'physical',
-    image: '/images/food-bank.jpg',
   },
   {
     id: 4,
     title: 'Morning Dog Walking',
     description: 'Help our energetic shelter residents get their morning exercise and fresh air.',
-    points: 200,
     duration: '2 hours',
-    location: 'Happy Tails Shelter',
+    location: { address: 'Happy Tails Shelter, Bark Park', lat: 0, lng: 0 },
     locationType: 'physical',
-    image: '/images/dog-walking.jpg',
   },
-]
-
-const topContributors = [
-  { rank: 1, name: 'Marcus Chen', points: 3890, hasGold: true },
-  { rank: 2, name: 'Sarah Jenkins', points: 3420 },
-  { rank: 3, name: 'David Miller', points: 3100 },
-  { rank: 4, name: 'Elena Rodriguez', points: 2950 },
-]
-
-const certifications = [
-  { name: 'First Aid Certified', status: 'Valid until Dec 2025', icon: Shield, completed: true },
-  { name: 'Youth Mentorship', status: 'Level 2 Specialist', icon: HeartHandshake, completed: true },
-  { name: 'Crisis Counselor', status: 'In Progress (75%)', icon: Award, completed: false },
 ]
 
 export default function VolunteerDashboardPage() {
   const [isAvailable, setIsAvailable] = useState(true)
+  const [opportunities, setOpportunities] = useState<any[]>([])
+  const [latestApplications, setLatestApplications] = useState<any[]>([])
+  const [stats, setStats] = useState({ hours: 0, missions: 0, nextMission: null as any })
+  const [selectedRequest, setSelectedRequest] = useState<any>(null)
   const { user: firebaseUser } = useAuth()
   const [userData, setUserData] = useState<any>(null)
+  const [selectedApplication, setSelectedApplication] = useState<any>(null)
+  const [deleteId, setDeleteId] = useState<string | null>(null)
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
@@ -99,197 +83,247 @@ export default function VolunteerDashboardPage() {
     if (mounted) fetchUserData();
   }, [firebaseUser, mounted]);
 
+  useEffect(() => {
+    if (!mounted) return;
+
+    // PART B: Recommended Opportunities
+    const qRec = query(
+      collection(db, "requests"),
+      where("status", "==", "open"),
+      orderBy("createdAt", "desc"),
+      limit(3)
+    );
+
+    const unsubRec = onSnapshot(qRec, (snapshot) => {
+      const dbRequests = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setOpportunities(dbRequests);
+    });
+
+    // PART A: Latest Applications
+    let unsubApps = () => {};
+    if (firebaseUser) {
+      const qApps = query(
+        collection(db, "applications"),
+        where("volunteerId", "==", firebaseUser.uid),
+        orderBy("createdAt", "desc"),
+        limit(50)
+      );
+      unsubApps = onSnapshot(qApps, (snapshot) => {
+        setLatestApplications(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      });
+
+      // PART C: Stats (Mocked or derived)
+      const qStats = query(
+        collection(db, "applications"),
+        where("volunteerId", "==", firebaseUser.uid),
+        where("status", "in", ["accepted", "completed"])
+      );
+      onSnapshot(qStats, (snapshot) => {
+        const missions = snapshot.docs.map(d => d.data());
+        const completed = missions.filter(m => m.status === 'completed');
+        setStats({
+          hours: completed.length * 2 + (missions.length - completed.length) * 0.5, // 2h for completed, 0.5h for ongoing
+          missions: completed.length,
+          nextMission: missions.find(m => m.status === 'accepted') || null
+        });
+      });
+    }
+
+    return () => {
+      unsubRec();
+      unsubApps();
+    };
+  }, [mounted, firebaseUser]);
+
   if (!mounted) return null;
 
   return (
     <div className="min-h-screen bg-background">
-      <DashboardSidebar type="volunteer" userName={userData?.fullName || "Volunteer"} userId={userData?.uid?.substring(0, 8).toUpperCase() || "..." } />
+      <DashboardSidebar type="volunteer" userName={userData?.fullName || "Volunteer"} userId={firebaseUser?.uid} />
       
       <main className="lg:ml-64 min-h-screen">
         {/* Header */}
         <header className="sticky top-0 z-30 bg-card border-b border-border px-6 py-4">
           <div className="flex items-center justify-between">
-            <div className="lg:ml-0 ml-12 flex-1 max-w-xl">
-              <div className="flex items-center gap-2 bg-muted rounded-xl px-4 py-2.5">
+            <div className="lg:ml-0 ml-12">
+              <h1 className="text-2xl font-bold text-foreground">Welcome back, {userData?.fullName?.split(' ')[0] || "Student"}</h1>
+              <p className="text-muted-foreground">Manage your requests and campus support.</p>
+            </div>
+            <div className="flex items-center gap-6">
+              <div className="hidden md:flex items-center gap-2 bg-muted/50 rounded-2xl px-5 py-2.5 border border-border/50">
                 <Search className="w-4 h-4 text-muted-foreground" />
                 <input 
                   type="text" 
-                  placeholder="Search opportunities, events or members..." 
-                  className="bg-transparent border-none outline-none text-sm w-full text-foreground placeholder:text-muted-foreground"
+                  placeholder="Search requests..." 
+                  className="bg-transparent border-none outline-none text-sm w-40"
                 />
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <button className="p-2 rounded-xl hover:bg-muted transition-colors relative">
-                <Bell className="w-5 h-5 text-muted-foreground" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-destructive rounded-full" />
-              </button>
-              <button className="p-2 rounded-xl hover:bg-muted transition-colors">
-                <Settings className="w-5 h-5 text-muted-foreground" />
-              </button>
-              <div className="flex items-center gap-3">
-                <div className="text-right hidden sm:block">
-                  <p className="text-sm font-medium text-foreground">{userData?.fullName || "Volunteer"}</p>
-                  <p className="text-xs text-primary">Volunteer Hero</p>
-                </div>
-                <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <span className="text-sm font-semibold text-primary">
-                    {userData?.fullName?.split(' ').map((n: string) => n[0]).join('').toUpperCase() || "V"}
-                  </span>
-                </div>
               </div>
             </div>
           </div>
         </header>
 
-        <div className="p-6 space-y-6">
-          {/* Stats Row */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {stats.map((stat) => (
-              <div key={stat.label} className="bg-card rounded-2xl p-5 border border-border">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
-                    <stat.icon className="w-5 h-5 text-primary" />
-                  </div>
-                  <span className={`text-xs font-medium px-2 py-1 rounded-full ${stat.badgeColor}`}>
-                    {stat.badge}
-                  </span>
-                </div>
-                <p className="text-sm text-muted-foreground">{stat.label}</p>
-                <p className="text-2xl font-bold text-foreground">{stat.value}</p>
+        <div className="p-6 space-y-8">
+          {/* Main Feed Section */}
+        <div className="space-y-10 max-w-7xl mx-auto">
+          {/* PART C: Stats & Highlight Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-card p-6 rounded-2xl border border-border shadow-soft flex items-center gap-6 group hover:shadow-elevated transition-all">
+              <div className="w-16 h-16 rounded-2xl bg-primary/5 flex items-center justify-center border border-primary/10 group-hover:bg-primary/10 transition-colors">
+                <Clock className="w-8 h-8 text-primary" />
               </div>
-            ))}
+              <div>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Total Impact</p>
+                <h3 className="text-3xl font-display font-bold text-foreground">{stats.hours} <span className="text-sm font-medium text-muted-foreground">Hours</span></h3>
+              </div>
+            </div>
+
+            <div className="bg-card p-6 rounded-2xl border border-border shadow-soft flex items-center gap-6 group hover:shadow-elevated transition-all">
+              <div className="w-16 h-16 rounded-2xl bg-orange-500/5 flex items-center justify-center border border-orange-500/10 group-hover:bg-orange-500/10 transition-colors">
+                <Trophy className="w-8 h-8 text-orange-500" />
+              </div>
+              <div>
+                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Missions</p>
+                <h3 className="text-3xl font-display font-bold text-foreground">{stats.missions} <span className="text-sm font-medium text-muted-foreground">Completed</span></h3>
+              </div>
+            </div>
+
+            <div className="bg-primary/5 p-6 rounded-2xl border border-primary/10 shadow-soft flex items-center gap-6 group hover:shadow-elevated transition-all border-dashed">
+              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/20 shrink-0">
+                <Calendar className="w-8 h-8 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-black text-primary uppercase tracking-widest mb-1">Latest Update</p>
+                <h3 className="text-sm font-bold text-foreground truncate">
+                  {stats.nextMission?.requestTitle || "No upcoming missions"}
+                </h3>
+                <p className="text-[11px] font-medium text-primary/70 truncate">
+                  {stats.nextMission?.status === 'accepted' ? 'Mission is active' : 'Awaiting approval'}
+                </p>
+              </div>
+            </div>
           </div>
 
-          <div className="grid lg:grid-cols-3 gap-6">
-            {/* Opportunities */}
-            <div className="lg:col-span-2 space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold text-foreground">Recommended for You</h2>
-                <button className="text-sm text-primary font-medium hover:underline">View all</button>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+            {/* PART A: Latest Applied Applications (2/3 width) */}
+            <div className="lg:col-span-2 space-y-6">
+              <div className="flex items-center justify-between px-2">
+                <h2 className="text-xl font-display font-bold text-foreground flex items-center gap-2">
+                  <HeartHandshake className="text-primary" size={20} /> Latest Applied
+                </h2>
+                <button className="text-xs font-bold text-primary hover:underline uppercase tracking-wider">History</button>
               </div>
-              
-              <div className="grid md:grid-cols-2 gap-4">
-                {opportunities.map((opp) => (
-                  <div key={opp.id} className="bg-card rounded-2xl border border-border overflow-hidden hover:shadow-lg transition-shadow">
-                    <div className="relative h-40">
-                      <Image
-                        src={opp.image}
-                        alt={opp.title}
-                        fill
-                        className="object-cover"
-                      />
-                      <span className="absolute top-3 left-3 bg-primary text-primary-foreground text-xs font-semibold px-2.5 py-1 rounded-full">
-                        {opp.points} pts
-                      </span>
+
+              <div className="space-y-4">
+                {latestApplications.slice(0, 2).map((app) => (
+                  <VolunteerApplicationCard 
+                    key={app.id} 
+                    app={app} 
+                    onEdit={(application) => {
+                      setSelectedRequest({
+                        id: application.requestId,
+                        title: application.requestTitle,
+                        studentName: application.studentName,
+                        location: application.requestLocation || { address: 'Campus' },
+                        urgency: application.requestUrgency || 'medium',
+                        categoryTags: application.requestCategoryTags || [],
+                        date: application.requestDate || Date.now(),
+                        time: application.requestTime || '10:00',
+                        duration: application.requestDuration || '2 hours',
+                        description: application.requestDescription || 'No description available.'
+                      });
+                      setSelectedApplication(application);
+                    }}
+                    onDelete={(id) => setDeleteId(id)}
+                  />
+                ))}
+
+                {latestApplications.length === 0 && (
+                  <div className="py-12 border-2 border-dashed border-border rounded-[32px] text-center space-y-3">
+                    <div className="w-12 h-12 bg-muted rounded-full flex items-center justify-center mx-auto opacity-50">
+                      <Shield className="text-muted-foreground" size={24} />
                     </div>
-                    <div className="p-4">
-                      <div className="flex items-center gap-2 text-xs font-medium mb-2">
-                        {opp.locationType === 'remote' ? (
-                          <Wifi className="w-3.5 h-3.5 text-primary" />
-                        ) : (
-                          <MapPin className="w-3.5 h-3.5 text-primary" />
-                        )}
-                        <span className="text-primary uppercase">{opp.location}</span>
-                      </div>
-                      <h3 className="font-semibold text-foreground mb-1">{opp.title}</h3>
-                      <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{opp.description}</p>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                          <Clock className="w-4 h-4" />
-                          {opp.duration}
-                        </div>
-                        <button className="bg-primary text-primary-foreground px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors">
-                          Accept
-                        </button>
-                      </div>
-                    </div>
+                    <p className="text-sm font-medium text-muted-foreground">You haven't applied to any missions yet.</p>
                   </div>
+                )}
+              </div>
+            </div>
+
+            {/* PART B: Recommended Opportunities (1/3 width) */}
+            <div className="space-y-6">
+              <div className="flex items-center justify-between px-2">
+                <h2 className="text-xl font-display font-bold text-foreground flex items-center gap-2">
+                  <Star className="text-primary" size={20} /> For You
+                </h2>
+                <button className="text-xs font-bold text-primary hover:underline uppercase tracking-wider">All</button>
+              </div>
+
+              <div className="space-y-4">
+                {opportunities.map((opp) => (
+                  <VolunteerOpportunityCard 
+                    key={opp.id} 
+                    opp={opp} 
+                    hasApplied={latestApplications.some(app => app.requestId === opp.id)}
+                    onView={(selected) => setSelectedRequest(selected)}
+                  />
                 ))}
               </div>
             </div>
-
-            {/* Right Column */}
-            <div className="space-y-6">
-              {/* Top Contributors */}
-              <div className="bg-card rounded-2xl p-6 border border-border">
-                <div className="flex items-center gap-2 mb-4">
-                  <Trophy className="w-5 h-5 text-yellow-500" />
-                  <h3 className="font-semibold text-foreground">Top Contributors</h3>
-                </div>
-                <div className="space-y-3">
-                  {topContributors.map((user) => (
-                    <div key={user.rank} className="flex items-center gap-3">
-                      <span className={`w-6 text-center font-semibold ${
-                        user.rank === 1 ? 'text-yellow-500' : 
-                        user.rank === 2 ? 'text-gray-400' : 
-                        user.rank === 3 ? 'text-amber-600' : 'text-muted-foreground'
-                      }`}>
-                        {user.rank}
-                      </span>
-                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="text-sm font-medium text-primary">
-                          {user.name.split(' ').map(n => n[0]).join('')}
-                        </span>
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-foreground">{user.name}</p>
-                        <p className="text-xs text-muted-foreground">{user.points.toLocaleString()} pts</p>
-                      </div>
-                      {user.hasGold && <Trophy className="w-4 h-4 text-yellow-500" />}
-                    </div>
-                  ))}
-                </div>
-                <p className="text-sm text-primary mt-4 text-center">
-                  You are currently ranked #412
-                </p>
-              </div>
-
-              {/* Certifications */}
-              <div className="bg-card rounded-2xl p-6 border border-border">
-                <div className="flex items-center gap-2 mb-4">
-                  <Award className="w-5 h-5 text-primary" />
-                  <h3 className="font-semibold text-foreground">Certifications</h3>
-                </div>
-                <div className="space-y-3">
-                  {certifications.map((cert) => (
-                    <div key={cert.name} className="flex items-center gap-3 p-3 rounded-xl bg-muted/50">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                        cert.completed ? 'bg-primary/10' : 'bg-muted'
-                      }`}>
-                        <cert.icon className={`w-5 h-5 ${cert.completed ? 'text-primary' : 'text-muted-foreground'}`} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{cert.name}</p>
-                        <p className="text-xs text-muted-foreground">{cert.status}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <button className="w-full mt-4 py-2.5 rounded-xl border border-primary text-primary text-sm font-medium hover:bg-primary/5 transition-colors flex items-center justify-center gap-2">
-                  <Plus className="w-4 h-4" />
-                  Add New Certification
-                </button>
-              </div>
-            </div>
           </div>
         </div>
 
-        {/* Availability Toggle */}
-        <div className="fixed bottom-6 left-6 lg:left-[17rem] bg-card rounded-2xl p-4 border border-border shadow-lg">
-          <p className="text-xs font-medium text-primary uppercase mb-2">Availability Status</p>
-          <div className="flex items-center gap-3">
-            <span className="text-sm font-medium text-foreground">Ready for help</span>
-            <button 
-              onClick={() => setIsAvailable(!isAvailable)}
-              className={`w-12 h-7 rounded-full transition-colors ${isAvailable ? 'bg-primary' : 'bg-muted'} relative`}
-            >
-              <div className={`absolute top-1 w-5 h-5 rounded-full bg-white transition-transform ${
-                isAvailable ? 'translate-x-6' : 'translate-x-1'
-              }`} />
-            </button>
-          </div>
+        {/* Delete Confirmation */}
+        <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+          <AlertDialogContent className="rounded-[32px] border-border bg-card shadow-elevated p-8">
+            <AlertDialogHeader className="space-y-4">
+              <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto">
+                <Trash2 className="text-red-500 w-8 h-8" />
+              </div>
+              <div className="text-center space-y-2">
+                <AlertDialogTitle className="text-2xl font-display font-bold">Withdraw Application?</AlertDialogTitle>
+                <AlertDialogDescription className="text-muted-foreground font-medium">
+                  Are you sure you want to withdraw your help? This action cannot be undone, and the student will no longer see your application.
+                </AlertDialogDescription>
+              </div>
+            </AlertDialogHeader>
+            <AlertDialogFooter className="mt-8 gap-4 sm:justify-center">
+              <AlertDialogCancel className="rounded-2xl border-2 py-6 min-w-[120px] font-bold">Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                className="bg-red-500 hover:bg-red-600 rounded-2xl py-6 min-w-[120px] font-bold shadow-soft"
+                onClick={async () => {
+                  if (deleteId) {
+                    try {
+                      await deleteDoc(doc(db, "applications", deleteId));
+                    } catch (error) {
+                      console.error("Error deleting application:", error);
+                    }
+                  }
+                  setDeleteId(null);
+                }}
+              >
+                Yes, Withdraw
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
         </div>
+
+        {/* Application Modal */}
+        {selectedRequest && (
+          <VolunteerApplicationModal
+            request={selectedRequest}
+            volunteerProfile={userData}
+            applicationId={selectedApplication?.id}
+            initialData={selectedApplication}
+            onClose={() => {
+              setSelectedRequest(null);
+              setSelectedApplication(null);
+            }}
+            onApply={(data) => {
+              setSelectedRequest(null);
+              setSelectedApplication(null);
+            }}
+          />
+        )}
       </main>
     </div>
   )

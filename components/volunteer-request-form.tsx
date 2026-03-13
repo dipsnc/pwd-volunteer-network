@@ -5,11 +5,13 @@ import { useForm, useFieldArray } from 'react-hook-form'
 import { X, Plus, MapPin, Hash, ListTodo, FileText, Type } from 'lucide-react'
 import dynamic from 'next/dynamic'
 import { motion } from 'framer-motion'
-import { generateId, saveVolunteerRequest, type VolunteerRequest, getCurrentUser } from '@/lib/store'
+import { generateId, type VolunteerRequest, getCurrentUser } from '@/lib/store'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import CalmButton from '@/components/calm-button'
+import { db } from '@/lib/firebase'
+import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore'
 
 const LocationPicker = dynamic(() => import('./location-picker'), { 
   ssr: false,
@@ -98,7 +100,7 @@ export default function VolunteerRequestForm({ onClose, onSuccess, request, read
     );
   };
 
-  const onSubmit = (data: FormValues) => {
+  const onSubmit = async (data: FormValues) => {
     if (!location) {
       toast.error("Please select a location on the map.")
       return
@@ -109,27 +111,45 @@ export default function VolunteerRequestForm({ onClose, onSuccess, request, read
       return
     }
 
-    const finalRequest: VolunteerRequest = {
-      ...(request || {}),
-      id: request?.id || generateId(),
-      studentId: request?.studentId || user.id,
-      studentName: request?.studentName || user.fullName,
-      studentAvatar: request?.studentAvatar || (user as any).photoName || '', 
-      title: data.title,
-      description: data.description,
-      date: data.date,
-      time: data.time,
-      urgency: data.urgency,
-      tasks: data.tasks.map(t => t.value).filter(val => val.trim() !== ""),
-      categoryTags: data.categoryTags,
-      location: location,
-      status: request?.status || 'open',
-      createdAt: request?.createdAt || new Date().toISOString()
-    }
+    try {
+      const finalRequest = {
+        studentId: request?.studentId || (user as any).uid || user.id,
+        studentName: request?.studentName || user.fullName,
+        studentAvatar: request?.studentAvatar || (user as any).photoName || '', 
+        title: data.title,
+        description: data.description,
+        date: data.date,
+        time: data.time,
+        urgency: data.urgency,
+        tasks: data.tasks.map(t => t.value).filter(val => val.trim() !== ""),
+        categoryTags: data.categoryTags,
+        location: location,
+        status: request?.status || 'open',
+        updatedAt: serverTimestamp(),
+        createdAt: request?.createdAt || new Date().toISOString(),
+        // Default points and duration for UI consistency if not provided
+        points: (request as any)?.points || 250,
+        duration: (request as any)?.duration || '2 hours'
+      }
 
-    saveVolunteerRequest(finalRequest)
-    toast.success(request ? "Request updated successfully!" : "Volunteer request posted successfully!")
-    onSuccess()
+      if (request?.id) {
+        // Update existing
+        await updateDoc(doc(db, "requests", request.id), finalRequest);
+        toast.success("Request updated successfully!");
+      } else {
+        // Create new
+        await addDoc(collection(db, "requests"), {
+          ...finalRequest,
+          createdAt: serverTimestamp()
+        });
+        toast.success("Volunteer request posted successfully!");
+      }
+      
+      onSuccess()
+    } catch (error) {
+      console.error("Error saving request:", error);
+      toast.error("Failed to save request. Please try again.");
+    }
   }
 
   return (

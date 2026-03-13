@@ -9,23 +9,27 @@ import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 
 // Fix Leaflet icon issue
-const DefaultIcon = L.icon({
-  iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-})
-L.Marker.prototype.options.icon = DefaultIcon
+if (typeof window !== 'undefined') {
+  const DefaultIcon = L.icon({
+    iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+    shadowUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+  })
+  L.Marker.prototype.options.icon = DefaultIcon
+}
 
 interface LocationPickerProps {
   onLocationSelect: (lat: number, lng: number, address: string) => void
   disabled?: boolean
+  hideSearch?: boolean
   currentLocation?: { lat: number, lng: number, address: string } | null
 }
 
-function LocationMarker({ position, setPosition }: { position: L.LatLng | null, setPosition: (pos: L.LatLng) => void }) {
+function LocationMarker({ position, setPosition, disabled }: { position: L.LatLng | null, setPosition: (pos: L.LatLng) => void, disabled: boolean }) {
   const map = useMapEvents({
     click(e) {
+      if (disabled) return
       setPosition(e.latlng)
       map.flyTo(e.latlng, map.getZoom())
     },
@@ -41,7 +45,7 @@ function MapUpdater({ center }: { center: L.LatLngExpression }) {
   return null
 }
 
-export default function LocationPicker({ onLocationSelect, disabled = false, currentLocation }: LocationPickerProps) {
+export default function LocationPicker({ onLocationSelect, disabled = false, hideSearch = false, currentLocation }: LocationPickerProps) {
   const [position, setPosition] = useState<L.LatLng | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(false)
@@ -113,18 +117,50 @@ export default function LocationPicker({ onLocationSelect, disabled = false, cur
   }, [onLocationSelect])
 
   useEffect(() => {
-    if (currentLocation) {
-      const newPos = new L.LatLng(currentLocation.lat, currentLocation.lng)
-      setPosition(newPos)
-      setCenter([currentLocation.lat, currentLocation.lng])
-    }
-  }, [currentLocation])
+  // Check if the object exists AND both coordinates are numbers
+  if (
+    currentLocation && 
+    typeof currentLocation.lat === 'number' && 
+    typeof currentLocation.lng === 'number'
+  ) {
+    const newPos = new L.LatLng(currentLocation.lat, currentLocation.lng);
+    setPosition(newPos);
+    setCenter([currentLocation.lat, currentLocation.lng]);
+  }
+}, [currentLocation]);
 
   useEffect(() => {
-    if (position) {
-      fetchAddress(position.lat, position.lng)
+    if (typeof window !== 'undefined' && position) {
+      if (!disabled) {
+        fetchAddress(position.lat, position.lng)
+      }
     }
   }, [position, fetchAddress])
+
+  if (hideSearch) {
+    return (
+      <div className="h-full w-full rounded-2xl overflow-hidden border border-border relative bg-muted/5">
+        <MapContainer 
+          key="static-map-instance"
+          center={center} 
+          zoom={13} 
+          scrollWheelZoom={false} 
+          dragging={false}
+          zoomControl={false}
+          doubleClickZoom={false}
+          touchZoom={false}
+          className="h-full w-full z-0"
+        >
+          <TileLayer
+            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
+          />
+          <LocationMarker position={position} setPosition={setPosition} disabled={true} />
+          <MapUpdater center={center} />
+        </MapContainer>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -153,6 +189,7 @@ export default function LocationPicker({ onLocationSelect, disabled = false, cur
 
       <div className="h-[300px] w-full rounded-2xl overflow-hidden border border-border relative">
         <MapContainer 
+          key="interactive-map-instance"
           center={center} 
           zoom={13} 
           scrollWheelZoom={false} 
@@ -162,10 +199,10 @@ export default function LocationPicker({ onLocationSelect, disabled = false, cur
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
             url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
           />
-          <LocationMarker position={position} setPosition={setPosition} />
+          <LocationMarker position={position} setPosition={setPosition} disabled={false} />
           <MapUpdater center={center} />
         </MapContainer>
       </div>
     </div>
   )
-}
+}

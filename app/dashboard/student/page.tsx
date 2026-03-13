@@ -16,7 +16,7 @@ import dynamic from 'next/dynamic'
 import { getBrowserLocation } from '@/lib/location'
 import { useAuth } from '@/components/auth-provider'
 import { db } from '@/lib/firebase'
-import { doc, getDoc } from 'firebase/firestore'
+import { collection, query, where, onSnapshot, doc, getDoc, orderBy } from 'firebase/firestore'
 
 const MOCK_REQUESTS: VolunteerRequest[] = [
   {
@@ -85,25 +85,38 @@ export default function StudentDashboardPage() {
   }, [firebaseUser, mounted]);
 
   useEffect(() => {
-    if (userData) {
-      const userRequests = getVolunteerRequests().filter(r => r.studentId === userData.uid || r.studentId === userData.id)
-      const combined = [...MOCK_REQUESTS, ...userRequests]
-      setRequests(combined)
+    if (!userData || !mounted) return;
+
+    // Listen to real-time updates for this student's requests
+    const q = query(
+      collection(db, "requests"), 
+      where("studentId", "==", userData.uid || userData.id),
+      orderBy("createdAt", "desc")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const dbRequests = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as VolunteerRequest[];
+      
+      const combined = [...MOCK_REQUESTS, ...dbRequests];
+      setRequests(combined);
+      
       if (combined.length > 0 && !selectedStatusRequestId) {
-        setSelectedStatusRequestId(combined[0].id)
+        setSelectedStatusRequestId(combined[0].id);
       }
-    }
-  }, [userData?.id, userData?.uid])
+    }, (error) => {
+      console.error("Error fetching requests:", error);
+      // Fallback to mock data if there's an error (e.g. index not created yet)
+      setRequests(MOCK_REQUESTS);
+    });
+
+    return () => unsubscribe();
+  }, [userData?.id, userData?.uid, mounted]);
 
   const refreshRequests = () => {
-    if (userData) {
-      const userRequests = getVolunteerRequests().filter(r => r.studentId === userData.uid || r.studentId === userData.id)
-      const combined = [...MOCK_REQUESTS, ...userRequests]
-      setRequests(combined)
-      if (combined.length > 0 && !selectedStatusRequestId) {
-        setSelectedStatusRequestId(combined[0].id)
-      }
-    }
+    // This is now handled by onSnapshot, but we keep the prop for compatibility
     setShowRequestForm(false)
     setSelectedRequest(undefined)
   }
@@ -132,7 +145,7 @@ const MiniMap = dynamic(() => import('@/components/minimap'), {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <DashboardSidebar type="student" userName={userData?.fullName || "Student"} userId={userData?.uid?.substring(0, 8).toUpperCase() || "..." } />
+      <DashboardSidebar type="student" userName={userData?.fullName || "Student"} userId={firebaseUser?.uid} />
       
       <main className="lg:ml-64 min-h-screen">
         {/* Header */}

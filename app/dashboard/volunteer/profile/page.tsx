@@ -3,9 +3,9 @@
 import { useState, useEffect } from "react"
 import { motion } from "framer-motion"
 import { useRouter } from "next/navigation"
-import { ArrowLeft, User, Globe, Type, Lock, Phone, Mail, LogOut, Moon, Eye, Save, Edit2 } from "lucide-react"
+import { ArrowLeft, User, Globe, Type, Lock, Phone, Mail, LogOut, Moon, Eye, Save, Edit2, Brain, GraduationCap } from "lucide-react"
 import { useAccessibility } from "@/components/accessibility-provider"
-import { getCurrentUser, clearCurrentUser, saveStudent, type StudentUser } from "@/lib/store"
+import { clearCurrentUser } from "@/lib/store"
 import { toast } from "sonner"
 import CalmButton from "@/components/calm-button"
 import CalmCard from "@/components/calm-card"
@@ -18,8 +18,7 @@ import { AlertTriangle, Trash2 } from "lucide-react"
 
 const LANGUAGES = ["English", "Hindi", "Marathi"]
 
-export default function StudentProfilePage() {
-  const user = getCurrentUser() as StudentUser | null
+export default function VolunteerProfileSettingsPage() {
   const router = useRouter()
   const { 
     speak, 
@@ -31,35 +30,34 @@ export default function StudentProfilePage() {
     setTextSize 
   } = useAccessibility()
   const { user: firebaseUser, logout } = useAuth()
-  const [profileData, setProfileData] = useState<StudentUser | null>(null)
+  const [profileData, setProfileData] = useState<any>(null)
   const [loadingProfile, setLoadingProfile] = useState(true)
 
   const [activeSection, setActiveSection] = useState<string>("profile")
   const [language, setLanguage] = useState("English")
   const [newPassword, setNewPassword] = useState("")
-  const [newPhone, setNewPhone] = useState(user?.phone || "")
-  const [newEmail, setNewEmail] = useState(user?.email || "")
+  const [newPhone, setNewPhone] = useState("")
+  const [newEmail, setNewEmail] = useState("")
+  const [newSkills, setNewSkills] = useState("")
 
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setMounted(true)
-    if (mounted && !firebaseUser && !loadingProfile) {
-      router.push("/")
-    }
-  }, [firebaseUser, loadingProfile, mounted, router])
+  }, [])
 
   useEffect(() => {
     const fetchProfile = async () => {
       if (firebaseUser) {
         try {
-          const docRef = doc(db, "students", firebaseUser.uid);
+          const docRef = doc(db, "volunteers", firebaseUser.uid);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
-            const data = docSnap.data() as StudentUser;
+            const data = docSnap.data();
             setProfileData(data);
             setNewPhone(data.phone || "");
             setNewEmail(data.email || "");
+            setNewSkills(data.skills || "");
           }
         } catch (error) {
           console.error("Error fetching profile:", error);
@@ -67,7 +65,7 @@ export default function StudentProfilePage() {
         } finally {
           setLoadingProfile(false);
         }
-      } else {
+      } else if (mounted) {
         setLoadingProfile(false);
       }
     };
@@ -75,7 +73,7 @@ export default function StudentProfilePage() {
     if (mounted) fetchProfile();
   }, [firebaseUser, mounted]);
 
-  if (!mounted || loadingProfile) return <div className="min-h-screen bg-background flex items-center justify-center font-bold">Loading...</div>
+  if (!mounted || loadingProfile) return <div className="min-h-screen bg-background flex items-center justify-center font-bold">Loading Settings...</div>
   if (!firebaseUser || !profileData) return null
 
   const handleSignOut = async () => {
@@ -85,45 +83,27 @@ export default function StudentProfilePage() {
     router.push("/")
   }
 
-  const handlePasswordChange = () => {
-    toast.info("Password Change", {
-      description: "Please use the 'Forgot Password' flow or Firebase console to change passwords manually in this demo."
-    });
-    // In a real app, you'd use updatePassword(firebaseUser, newPassword)
-  }
-
   const handleContactUpdate = async () => {
-    if (!firebaseUser) return;
     try {
-      await updateDoc(doc(db, "students", firebaseUser.uid), {
+      await updateDoc(doc(db, "volunteers", firebaseUser.uid), {
         phone: newPhone,
-        email: newEmail
+        email: newEmail,
+        skills: newSkills
       });
-      setProfileData({ ...profileData, phone: newPhone, email: newEmail });
-      toast.success("Contact info updated")
-      if (speak) speak("Contact information updated")
+      setProfileData({ ...profileData, phone: newPhone, email: newEmail, skills: newSkills });
+      toast.success("Profile updated successfully")
+      if (speak) speak("Profile updated successfully")
     } catch (error) {
-      toast.error("Failed to update contact info");
+      toast.error("Failed to update profile");
     }
   }
-
-  const inputCls = "w-full px-4 py-3 rounded-xl border-2 border-border bg-background text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none transition-colors"
-
-  const sections = [
-    { id: "profile", icon: <User size={18} />, label: "My Profile" },
-    { id: "language", icon: <Globe size={18} />, label: "Language" },
-    { id: "display", icon: <Type size={18} />, label: "Display" },
-    { id: "security", icon: <Lock size={18} />, label: "Security" },
-    { id: "contact", icon: <Phone size={18} />, label: "Contact" },
-    { id: "danger", icon: <AlertTriangle size={18} className="text-destructive" />, label: "Danger Zone" },
-  ]
 
   const handleDeleteAccount = async () => {
     if (!firebaseUser) return;
     
     try {
       // 1. Delete Firestore document
-      await deleteDoc(doc(db, "students", firebaseUser.uid));
+      await deleteDoc(doc(db, "volunteers", firebaseUser.uid));
       
       // 2. Clear local store
       clearCurrentUser();
@@ -143,6 +123,17 @@ export default function StudentProfilePage() {
     }
   }
 
+  const inputCls = "w-full px-4 py-3 rounded-xl border-2 border-border bg-background text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none transition-colors font-medium"
+
+  const sections = [
+    { id: "profile", icon: <User size={18} />, label: "My Profile" },
+    { id: "language", icon: <Globe size={18} />, label: "Language" },
+    { id: "display", icon: <Type size={18} />, label: "Appearance" },
+    { id: "security", icon: <Lock size={18} />, label: "Security" },
+    { id: "contact", icon: <Phone size={18} />, label: "Contact & Skills" },
+    { id: "danger", icon: <AlertTriangle size={18} className="text-destructive" />, label: "Danger Zone" },
+  ]
+
   return (
     <div className="min-h-screen bg-background text-foreground lg:ml-64 p-6 lg:p-10">
       <div className="max-w-4xl mx-auto">
@@ -157,7 +148,7 @@ export default function StudentProfilePage() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h1 className="font-display text-4xl font-black text-foreground tracking-tight mb-2">Profile Settings</h1>
-              <p className="text-muted-foreground font-medium">Customize your presence and account preferences.</p>
+              <p className="text-muted-foreground font-medium">Manage your volunteer presence and account security.</p>
             </div>
             <button 
               onClick={() => router.push(`/profile/${firebaseUser.uid}`)}
@@ -169,16 +160,15 @@ export default function StudentProfilePage() {
         </header>
 
         <div className="flex flex-col lg:flex-row gap-8">
-          {/* Navigation Sidebar-style Inside Page */}
           <aside className="lg:w-1/4">
             <nav className="flex lg:flex-col gap-2 overflow-x-auto pb-4 lg:pb-0">
               {sections.map(s => (
                 <button 
                   key={s.id} 
-                  onClick={() => { setActiveSection(s.id); speak(`Switching to ${s.label} section`); }}
+                  onClick={() => setActiveSection(s.id)}
                   className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl text-sm font-bold whitespace-nowrap transition-all ${
                     activeSection === s.id 
-                    ? "gradient-primary text-primary-foreground shadow-soft" 
+                    ? "bg-primary text-primary-foreground shadow-soft" 
                     : "bg-card border border-border/50 text-muted-foreground hover:bg-muted hover:text-foreground"
                   }`}
                 >
@@ -189,34 +179,26 @@ export default function StudentProfilePage() {
             </nav>
           </aside>
 
-          {/* Main Content Area */}
           <div className="flex-1">
-            <CalmCard className="shadow-elevated border-none bg-card/50 backdrop-blur-xl">
+            <CalmCard className="shadow-elevated border-none bg-card/50 backdrop-blur-xl p-8">
               {activeSection === "profile" && (
                 <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
                   <div>
-                    <h2 className="font-display text-2xl font-bold text-foreground mb-6 border-b border-border pb-4">Personal Overview</h2>
+                    <h2 className="font-display text-2xl font-bold text-foreground mb-6 border-b border-border pb-4">Volunteer Identity</h2>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                       <ProfileField label="Full Name" value={profileData.fullName} icon={<User className="w-4 h-4" />} />
-                      <ProfileField label="Username" value={profileData.username} icon={<User className="w-4 h-4" />} />
+                      <ProfileField label="Role" value="Impact Specialist" icon={<Award size={16} />} />
                       <ProfileField label="Phone" value={profileData.phone} icon={<Phone className="w-4 h-4" />} />
                       <ProfileField label="Email" value={profileData.email} icon={<Mail className="w-4 h-4" />} />
-                      <ProfileField label="Blood Group" value={profileData.bloodGroup || "—"} />
-                      <ProfileField label="Age" value={profileData.age || "—"} />
                     </div>
                   </div>
 
                   <div className="pt-8 border-t border-border/50">
-                    <h3 className="font-display text-xl font-bold text-foreground mb-6">Disability & Support</h3>
+                    <h3 className="font-display text-xl font-bold text-foreground mb-6">Academic Background</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <ProfileField label="Disability Type" value={profileData.disabilityType} />
-                      <ProfileField label="Weight" value={profileData.weight ? `${profileData.weight} kg` : "—"} />
-                      <ProfileField label="Height" value={profileData.height ? `${profileData.height} cm` : "—"} />
-                      <ProfileField label="Enrolled in College" value={profileData.enrolledInCollege ? "Yes" : "No"} />
-                    </div>
-                    <div className="mt-6 p-4 rounded-xl bg-muted/30 border border-border/50">
-                       <label className="text-xs font-black text-muted-foreground uppercase tracking-widest mb-1 block">Course Details</label>
-                       <p className="text-foreground font-medium text-sm leading-relaxed">{profileData.courseDetails}</p>
+                      <ProfileField label="College/University" value={profileData.collegeName} icon={<GraduationCap size={16} />} />
+                      <ProfileField label="Course" value={profileData.course} />
+                      <ProfileField label="Current Year" value={`Year ${profileData.year}`} />
                     </div>
                   </div>
                 </motion.div>
@@ -229,7 +211,7 @@ export default function StudentProfilePage() {
                     {LANGUAGES.map(l => (
                       <button 
                         key={l} 
-                        onClick={() => { setLanguage(l); toast.success(`Language set to ${l}`); speak(`Language changed to ${l}`); }}
+                        onClick={() => setLanguage(l)}
                         className={`w-full text-left px-5 py-4 rounded-2xl border-2 font-bold transition-all flex items-center justify-between ${
                           language === l 
                           ? "border-primary bg-primary/5 text-primary" 
@@ -246,95 +228,79 @@ export default function StudentProfilePage() {
 
               {activeSection === "display" && (
                 <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} className="space-y-8">
-                  <h2 className="font-display text-2xl font-bold text-foreground mb-6 border-b border-border pb-4">Display & Accessibility</h2>
-                  
+                  <h2 className="font-display text-2xl font-bold text-foreground mb-6 border-b border-border pb-4">Visual Appearance</h2>
                   <div className="space-y-4">
                     <ToggleSwitch 
                       label="Dark Mode" 
                       description="Switch to a darker interface for reduced eye strain."
                       icon={<Moon size={18} className="text-muted-foreground" />} 
                       enabled={darkMode} 
-                      onToggle={() => { setDarkMode(!darkMode); speak(`Dark mode ${!darkMode ? "enabled" : "disabled"}`); }} 
+                      onToggle={() => setDarkMode(!darkMode)} 
                     />
-                    
                     <ToggleSwitch 
                       label="High Contrast" 
                       description="Increase clarity for better readability."
                       icon={<Eye size={18} className="text-muted-foreground" />} 
                       enabled={highContrast} 
-                      onToggle={() => { setHighContrast(!highContrast); speak(`High contrast ${!highContrast ? "enabled" : "disabled"}`); }} 
+                      onToggle={() => setHighContrast(!highContrast)} 
                     />
-                  </div>
-
-                  <div className="p-6 rounded-2xl bg-muted/30 border border-border/50">
-                    <p className="text-sm font-bold text-foreground mb-4 flex items-center gap-2">
-                       <Type size={18} className="text-primary" /> Text Display Size
-                    </p>
-                    <div className="flex gap-2 p-1 bg-background/50 rounded-xl border border-border/50">
-                      {(["small", "medium", "large", "xlarge"] as const).map(s => (
-                        <button 
-                          key={s} 
-                          onClick={() => { setTextSize(s); speak(`Text size set to ${s}`); }}
-                          className={`flex-1 py-3 rounded-lg text-xs font-black transition-all ${
-                            textSize === s 
-                            ? "gradient-primary text-primary-foreground shadow-soft" 
-                            : "text-muted-foreground hover:text-foreground"
-                          }`}
-                        >
-                          {s === "xlarge" ? "XL" : s.charAt(0).toUpperCase() + s.slice(1)}
-                        </button>
-                      ))}
-                    </div>
                   </div>
                 </motion.div>
               )}
 
               {activeSection === "security" && (
                 <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
-                  <h2 className="font-display text-2xl font-bold text-foreground mb-6 border-b border-border pb-4">Security Settings</h2>
+                  <h2 className="font-display text-2xl font-bold text-foreground mb-6 border-b border-border pb-4">Security & Privacy</h2>
                   <div className="space-y-4">
                     <div>
-                      <label className="text-sm font-bold text-foreground mb-2 block">Change Password</label>
+                      <label className="text-sm font-bold text-foreground mb-2 block font-display">New Password</label>
                       <input 
                         type="password" 
                         value={newPassword} 
                         onChange={e => setNewPassword(e.target.value)} 
                         className={inputCls} 
-                        placeholder="New password (min 6 characters)" 
+                        placeholder="Min 6 characters" 
                       />
                     </div>
-                    <CalmButton 
-                      onClick={handlePasswordChange}
-                      className="w-full"
-                    >
-                      Update Password
-                    </CalmButton>
+                    <CalmButton className="w-full">Update Password</CalmButton>
                   </div>
                 </motion.div>
               )}
 
               {activeSection === "contact" && (
                 <motion.div initial={{ opacity: 0, x: 10 }} animate={{ opacity: 1, x: 0 }} className="space-y-6">
-                  <h2 className="font-display text-2xl font-bold text-foreground mb-6 border-b border-border pb-4">Contact Information</h2>
+                  <h2 className="font-display text-2xl font-bold text-foreground mb-6 border-b border-border pb-4">Professional Information</h2>
                   <div className="space-y-5">
                     <div>
                       <label className="text-sm font-bold text-foreground mb-2 block flex items-center gap-2">
-                         <Phone size={14} className="text-primary" /> Mobile Number
+                         <Brain size={16} className="text-primary" /> Expertise & Skills (Comma separated)
                       </label>
-                      <input type="tel" value={newPhone} onChange={e => setNewPhone(e.target.value)} className={inputCls} />
+                      <textarea 
+                        value={newSkills} 
+                        onChange={e => setNewSkills(e.target.value)} 
+                        className={cn(inputCls, "min-h-[100px] resize-none")}
+                      />
                     </div>
-                    <div>
-                      <label className="text-sm font-bold text-foreground mb-2 block flex items-center gap-2">
-                         <Mail size={14} className="text-primary" /> Email Address
-                      </label>
-                      <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} className={inputCls} />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-sm font-bold text-foreground mb-2 block flex items-center gap-2">
+                           <Phone size={14} className="text-primary" /> Mobile Number
+                        </label>
+                        <input type="tel" value={newPhone} onChange={e => setNewPhone(e.target.value)} className={inputCls} />
+                      </div>
+                      <div>
+                        <label className="text-sm font-bold text-foreground mb-2 block flex items-center gap-2">
+                           <Mail size={14} className="text-primary" /> Public Email
+                        </label>
+                        <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} className={inputCls} />
+                      </div>
                     </div>
                     <CalmButton 
                       onClick={handleContactUpdate}
-                      className="w-full"
+                      className="w-full mt-4"
                       variant="primary"
                     >
-                      Save Contact Changes
+                      Save Changes
                     </CalmButton>
                   </div>
                 </motion.div>
@@ -351,7 +317,7 @@ export default function StudentProfilePage() {
                       <div>
                         <h3 className="text-lg font-bold text-foreground">Delete your account</h3>
                         <p className="text-sm text-muted-foreground font-medium mt-1">
-                          This action is permanent and cannot be undone. All your profile data, missions, and messages will be permanently removed.
+                          This action is permanent and cannot be undone. All your profile data, achievements, and messages will be permanently removed.
                         </p>
                       </div>
                     </div>
@@ -371,7 +337,7 @@ export default function StudentProfilePage() {
                             <div className="text-center space-y-2">
                               <AlertDialogTitle className="text-2xl font-display font-bold">Are you absolutely sure?</AlertDialogTitle>
                               <AlertDialogDescription className="text-muted-foreground font-medium">
-                                Do you really want to delete your account? This will permanently remove all your data from the PWD Volunteer Network.
+                                Do you really want to delete your volunteer account? This will permanently remove all your contributions and profile data.
                               </AlertDialogDescription>
                             </div>
                           </AlertDialogHeader>
@@ -392,12 +358,11 @@ export default function StudentProfilePage() {
               )}
             </CalmCard>
 
-            {/* Logout Action */}
             <button 
               onClick={handleSignOut}
-              className="w-full mt-6 py-4 rounded-2xl border-2 border-destructive/20 text-destructive font-display font-black text-sm flex items-center justify-center gap-2 hover:bg-destructive hover:text-destructive-foreground transition-all active:scale-95"
+              className="w-full mt-6 py-4 rounded-2xl bg-destructive/10 text-destructive font-display font-black text-sm flex items-center justify-center gap-2 hover:bg-destructive hover:text-white transition-all active:scale-95 border border-destructive/20"
             >
-              <LogOut size={18} /> Sign Out of Account
+              <LogOut size={18} /> Sign Out
             </button>
           </div>
         </div>
@@ -408,10 +373,10 @@ export default function StudentProfilePage() {
 
 function ProfileField({ label, value, icon }: { label: string, value: string, icon?: React.ReactNode }) {
   return (
-    <div className="group">
-      <label className="text-xs font-black text-muted-foreground uppercase tracking-widest mb-1.5 block group-hover:text-primary transition-colors">{label}</label>
-      <div className="flex items-center gap-2 h-10 px-4 rounded-xl bg-muted/20 border border-border/50 text-foreground font-bold text-sm">
-        {icon && <span className="text-muted-foreground">{icon}</span>}
+    <div className="space-y-2">
+      <label className="text-xs font-black text-muted-foreground uppercase tracking-widest block">{label}</label>
+      <div className="flex items-center gap-3 h-12 px-4 rounded-xl bg-muted/20 border border-border/50 text-foreground font-bold text-sm">
+        {icon && <span className="text-primary/60">{icon}</span>}
         {value}
       </div>
     </div>
@@ -442,19 +407,15 @@ function ToggleSwitch({ label, description, icon, enabled, onToggle }: { label: 
 
 function CheckCircle({ size }: { size: number }) {
   return (
-    <svg 
-      width={size} 
-      height={size} 
-      viewBox="0 0 24 24" 
-      fill="none" 
-      stroke="currentColor" 
-      strokeWidth="3" 
-      strokeLinecap="round" 
-      strokeLinejoin="round" 
-      className="text-primary"
-    >
-      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-      <polyline points="22 4 12 14.01 9 11.01" />
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-primary">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
     </svg>
   )
 }
+
+function Award({ size }: { size: number }) {
+  return <AwardIcon size={size} />;
+}
+
+import { Award as AwardIcon } from "lucide-react";import { cn } from "@/lib/utils"
+

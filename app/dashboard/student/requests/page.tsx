@@ -3,6 +3,10 @@
 import { useState } from 'react'
 import { DashboardSidebar } from '@/components/dashboard-sidebar'
 import { Search, Bell, Settings, Filter, FileText, Home, FileWarning, CheckCircle, Clock, XCircle } from 'lucide-react'
+import { useAuth } from '@/components/auth-provider'
+import { db } from '@/lib/firebase'
+import { doc, getDoc } from 'firebase/firestore'
+import { useEffect } from 'react'
 
 type FilterType = 'all' | 'pending' | 'assigned' | 'in-progress' | 'completed' | 'cancelled'
 
@@ -33,7 +37,33 @@ const statusColors: Record<string, string> = {
 }
 
 export default function StudentRequestsPage() {
+  const { user: firebaseUser } = useAuth()
+  const [userData, setUserData] = useState<any>(null)
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      if (firebaseUser) {
+        try {
+          const docRef = doc(db, "students", firebaseUser.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setUserData(docSnap.data());
+          }
+        } catch (error) {
+          console.error("Error fetching user:", error);
+        }
+      }
+    };
+    if (mounted) fetchUser();
+  }, [firebaseUser, mounted])
+
+  if (!mounted) return null
 
   const filteredRequests = activeFilter === 'all' 
     ? allRequests 
@@ -41,7 +71,7 @@ export default function StudentRequestsPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <DashboardSidebar type="student" userName="Alex Johnson" userId="20240912" />
+      <DashboardSidebar type="student" userName={userData?.fullName || "Student"} userId={firebaseUser?.uid} />
       
       <main className="lg:ml-64 min-h-screen">
         {/* Header */}
