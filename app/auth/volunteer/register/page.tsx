@@ -4,20 +4,20 @@ import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ArrowRight, Upload, FileCheck, User, Lock, Phone, Mail, FileText, MapPin, GraduationCap } from "lucide-react";
+import { ArrowLeft, ArrowRight, Upload, FileCheck, User, Lock, Phone, Mail, FileText, MapPin, GraduationCap, Camera } from "lucide-react";
 import { useAccessibility } from "@/components/accessibility-provider";
 import {  } from "@/lib/store";
 import { toast } from "sonner";
 import { auth, db } from "@/lib/firebase";
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { uploadImageToCloudinary } from "@/lib/cloudinary-action";
 
 const BLOOD_GROUPS = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
 const ASSISTANCE_TYPES = [
-  "Mobility Support", "Academic Assistance", "Reading/Note-taking",
-  "Technology Support", "Daily Living Activities", "Communication Support",
-  "Transportation", "Emotional Support", "Other"
+  "Reading Assistance", "Mobility Help", "Note Taking",
+  "Medical Visit Support", "Daily Tasks Support", "Volunteer Safety / Admin"
 ];
 
 export default function VolunteerRegisterPage() {
@@ -26,21 +26,23 @@ export default function VolunteerRegisterPage() {
   const router = useRouter();
   const studentIdRef = useRef<HTMLInputElement>(null);
   const govDocRef = useRef<HTMLInputElement>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
   const [loading, setLoading] = useState(false);
 
-  // Step 1
+  // Step 1: Identity + College
   const [fullName, setFullName] = useState("");
+  const [username, setUsername] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
-  const [reason, setReason] = useState("");
   const [collegeName, setCollegeName] = useState("");
   const [course, setCourse] = useState("");
   const [year, setYear] = useState("");
-  const [courseTimeline, setCourseTimeline] = useState("");
+  const [reason, setReason] = useState("");
+  const [photo, setPhoto] = useState<File | null>(null);
   const [studentId, setStudentId] = useState<File | null>(null);
   const [govDoc, setGovDoc] = useState<File | null>(null);
 
-  // Step 2
+  // Step 2: Personal
   const [parentGuardianName, setParentGuardianName] = useState("");
   const [parentGuardianPhone, setParentGuardianPhone] = useState("");
   const [alternativeContact, setAlternativeContact] = useState("");
@@ -52,9 +54,8 @@ export default function VolunteerRegisterPage() {
   const [height, setHeight] = useState("");
   const [skills, setSkills] = useState("");
 
-  // Step 3
-  const [assistanceType, setAssistanceType] = useState("");
-  const [username, setUsername] = useState("");
+  // Step 3: Volunteering Role
+  const [assistanceTypes, setAssistanceTypes] = useState<string[]>([]);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
@@ -63,8 +64,8 @@ export default function VolunteerRegisterPage() {
   const labelCls = "text-sm font-semibold text-foreground mb-1.5 block";
 
   const nextStep = () => {
-    if (step === 1 && (!fullName || !phone || !email || !collegeName || !course || !year)) {
-      toast.error("Required Fields Missing", { description: "Please fill in all basic and college information fields marked with *." });
+    if (step === 1 && (!fullName || !username || !phone || !email || !collegeName || !course || !year)) {
+      toast.error("Required Fields Missing", { description: "Please fill in all identity and college fields marked with *." });
       return;
     }
     if (step === 2 && (!bloodGroup || !age || !permanentAddress)) {
@@ -75,14 +76,21 @@ export default function VolunteerRegisterPage() {
     speak(`Step ${step + 1} of ${totalSteps}`);
   };
 
+  const toggleAssistanceType = (at: string) => {
+    setAssistanceTypes(prev => 
+      prev.includes(at) ? prev.filter(t => t !== at) : [...prev, at]
+    );
+    speak(at + (assistanceTypes.includes(at) ? " removed" : " added") + " to selection");
+  };
+
   const prevStep = () => { 
     setStep(s => s - 1); 
     speak(`Back to Step ${step - 1}`); 
   };
 
   const handleSubmit = async () => {
-    if (!assistanceType || !username || !password) { 
-      toast.error("Account Setup Missing", { description: "Please select an assistance type and set your login credentials." });
+    if (assistanceTypes.length === 0 || !password) { 
+      toast.error("Setup Missing", { description: "Please select assistance types and set your password." });
       return; 
     }
     if (password !== confirmPassword) { 
@@ -107,8 +115,29 @@ export default function VolunteerRegisterPage() {
         return;
       }
 
-      // 1. Create User in Firebase Auth
-      // Note: We use the email and password provided by the user
+      // 1. Upload files to Cloudinary first
+      let profilePhotoUrl = null;
+      if (photo) {
+        const formData = new FormData();
+        formData.append("file", photo);
+        profilePhotoUrl = await uploadImageToCloudinary(formData, `volunteer/profile-photos/${username}`);
+      }
+
+      let studentIdUrl = null;
+      if (studentId) {
+        const formData = new FormData();
+        formData.append("file", studentId);
+        studentIdUrl = await uploadImageToCloudinary(formData, `volunteer/college-ids/${username}`);
+      }
+
+      let govIdUrl = null;
+      if (govDoc) {
+        const formData = new FormData();
+        formData.append("file", govDoc);
+        govIdUrl = await uploadImageToCloudinary(formData, `volunteer/gov-ids/${username}`);
+      }
+
+      // 2. Create User in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const firebaseUser = userCredential.user;
 
@@ -116,37 +145,38 @@ export default function VolunteerRegisterPage() {
         uid: firebaseUser.uid,
         type: 'volunteer' as const,
         fullName,
-        phone,
+        username,
         email,
-        reason,
+        phone,
         collegeName,
         course,
         year,
-        courseTimeline,
-        studentIdName: studentId?.name || null,
-        govDocName: govDoc?.name || null,
+        reason,
+        profilePhotoUrl,
+        studentIdUrl,
+        govIdUrl,
         parentGuardianName,
         parentGuardianPhone,
         alternativeContact,
-        locationPreference,
         permanentAddress,
+        locationPreference,
         bloodGroup,
-        age,
-        weight,
-        height,
+        age: Number(age),
+        weight: weight ? Number(weight) : null,
+        height: height ? Number(height) : null,
         skills,
-        assistanceType,
-        username,
+        assistanceTypes,
         status: 'pending' as const,
+        completedMissions: 0,
+        rating: null,
         createdAt: new Date().toISOString()
       };
 
-      // 2. Clean data for Firestore (remove undefined)
+      // 3. Save to Firestore
       const cleanData = JSON.parse(JSON.stringify(userData, (key, value) => 
         value === undefined ? null : value
       ));
 
-      // 3. Save to Firestore
       await setDoc(doc(db, "volunteers", firebaseUser.uid), cleanData);
 
       toast.success("Application Submitted!", {
@@ -156,11 +186,7 @@ export default function VolunteerRegisterPage() {
       router.push("/auth/volunteer/pending");
     } catch (error: any) {
       console.error("Registration error:", error);
-      let message = "Could not complete registration. Please try again.";
-      if (error.code === 'auth/email-already-in-use') {
-        message = "This email is already registered.";
-      }
-      toast.error("Registration Failed", { description: message });
+      toast.error("Registration Failed", { description: error.message || "Could not complete registration." });
     } finally {
       setLoading(false);
     }
@@ -196,15 +222,24 @@ export default function VolunteerRegisterPage() {
                   <p className="text-sm text-muted-foreground mb-4">Introduce yourself to the community</p>
                 </header>
 
-                <div>
-                  <label htmlFor="fullName" className={labelCls}>Full Name *</label>
-                  <div className="relative">
-                    <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                    <input id="fullName" value={fullName} onChange={e => setFullName(e.target.value)} className={inputCls + " pl-10"} placeholder="Your full name" required aria-label="Enter your full name" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="fullName" className={labelCls}>Full Name *</label>
+                    <div className="relative">
+                      <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                      <input id="fullName" value={fullName} onChange={e => setFullName(e.target.value)} className={inputCls + " pl-10"} placeholder="Your full name" required aria-label="Enter your full name" />
+                    </div>
+                  </div>
+                  <div>
+                    <label htmlFor="username" className={labelCls}>Username *</label>
+                    <div className="relative">
+                      <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                      <input id="username" value={username} onChange={e => setUsername(e.target.value)} className={inputCls + " pl-10"} placeholder="Create a username" required aria-label="Enter a username" />
+                    </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label htmlFor="phone" className={labelCls}>Phone *</label>
                     <div className="relative">
@@ -225,7 +260,7 @@ export default function VolunteerRegisterPage() {
                   <label htmlFor="reason" className={labelCls}>Reason to Volunteer</label>
                   <div className="relative">
                     <FileText size={18} className="absolute left-3 top-4 text-muted-foreground" />
-                    <textarea id="reason" value={reason} onChange={e => setReason(e.target.value)} className={inputCls + " pl-10 resize-none"} rows={2} placeholder="What motivates you to help?" aria-label="Enter reason for volunteering" />
+                    <textarea id="reason" value={reason} onChange={e => setReason(e.target.value)} className={inputCls + " pl-10 resize-none text-sm"} rows={2} placeholder="What motivates you to help?" aria-label="Enter reason for volunteering" />
                   </div>
                 </div>
 
@@ -241,19 +276,26 @@ export default function VolunteerRegisterPage() {
                   <div><label htmlFor="year" className={labelCls}>Year *</label><input id="year" value={year} onChange={e => setYear(e.target.value)} className={inputCls} placeholder="e.g. 2nd Year" required aria-label="Enter current year of study" /></div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
-                    <label className={labelCls}>Student ID Card</label>
-                    <input ref={studentIdRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => { if (e.target.files?.[0]) { setStudentId(e.target.files[0]); speak("Student ID uploaded: " + e.target.files[0].name); }}} className="hidden" />
-                    <button type="button" onClick={() => studentIdRef.current?.click()} className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed transition-all cursor-pointer ${studentId ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground hover:border-primary/30"}`} aria-label={studentId ? `Student ID uploaded: ${studentId.name}` : "Click to upload student ID"}>
-                      {studentId ? <><FileCheck size={18} /><span className="text-sm font-semibold truncate max-w-[120px]">{studentId.name}</span></> : <><Upload size={18} /><span className="text-sm font-semibold">Upload ID</span></>}
+                    <label className={labelCls}>Profile Photo</label>
+                    <input ref={photoRef} type="file" accept=".jpg,.jpeg,.png" onChange={e => { if (e.target.files?.[0]) { setPhoto(e.target.files[0]); speak("Photo uploaded: " + e.target.files[0].name); } }} className="hidden" />
+                    <button type="button" onClick={() => photoRef.current?.click()} className={`w-full flex items-center justify-center gap-2 px-3 py-3 rounded-xl border-2 border-dashed transition-all cursor-pointer ${photo ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground hover:border-primary/30"}`} aria-label={photo ? `Photo uploaded: ${photo.name}` : "Click to upload profile photo"}>
+                      {photo ? <><FileCheck size={18} /><span className="text-sm font-semibold truncate max-w-[80px]">{photo.name}</span></> : <><Camera size={18} /><span className="text-sm font-semibold">Photo</span></>}
                     </button>
                   </div>
                   <div>
-                    <label className={labelCls}>Government ID</label>
+                    <label className={labelCls}>Student ID</label>
+                    <input ref={studentIdRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => { if (e.target.files?.[0]) { setStudentId(e.target.files[0]); speak("Student ID uploaded: " + e.target.files[0].name); }}} className="hidden" />
+                    <button type="button" onClick={() => studentIdRef.current?.click()} className={`w-full flex items-center justify-center gap-2 px-3 py-3 rounded-xl border-2 border-dashed transition-all cursor-pointer ${studentId ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground hover:border-primary/30"}`} aria-label={studentId ? `Student ID uploaded: ${studentId.name}` : "Click to upload student ID"}>
+                      {studentId ? <><FileCheck size={18} /><span className="text-sm font-semibold truncate max-w-[80px]">{studentId.name}</span></> : <><Upload size={18} /><span className="text-sm font-semibold">College ID</span></>}
+                    </button>
+                  </div>
+                  <div>
+                    <label className={labelCls}>Gov ID</label>
                     <input ref={govDocRef} type="file" accept=".pdf,.jpg,.jpeg,.png" onChange={e => { if (e.target.files?.[0]) { setGovDoc(e.target.files[0]); speak("Government ID uploaded: " + e.target.files[0].name); }}} className="hidden" />
-                    <button type="button" onClick={() => govDocRef.current?.click()} className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed transition-all cursor-pointer ${govDoc ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground hover:border-primary/30"}`} aria-label={govDoc ? `Government ID uploaded: ${govDoc.name}` : "Click to upload government ID"}>
-                      {govDoc ? <><FileCheck size={18} /><span className="text-sm font-semibold truncate max-w-[120px]">{govDoc.name}</span></> : <><Upload size={18} /><span className="text-sm font-semibold">Upload Gov ID</span></>}
+                    <button type="button" onClick={() => govDocRef.current?.click()} className={`w-full flex items-center justify-center gap-2 px-3 py-3 rounded-xl border-2 border-dashed transition-all cursor-pointer ${govDoc ? "border-primary bg-primary/5 text-primary" : "border-border text-muted-foreground hover:border-primary/30"}`} aria-label={govDoc ? `Government ID uploaded: ${govDoc.name}` : "Click to upload government ID"}>
+                      {govDoc ? <><FileCheck size={18} /><span className="text-sm font-semibold truncate max-w-[80px]">{govDoc.name}</span></> : <><Upload size={18} /><span className="text-sm font-semibold">Gov ID</span></>}
                     </button>
                   </div>
                 </div>
@@ -268,9 +310,10 @@ export default function VolunteerRegisterPage() {
                   <p className="text-sm text-muted-foreground mb-4">Background and availability details</p>
                 </header>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div><label htmlFor="guardianName" className={labelCls}>Parent/Guardian Name</label><input id="guardianName" value={parentGuardianName} onChange={e => setParentGuardianName(e.target.value)} className={inputCls} placeholder="Parent name" aria-label="Enter parent or guardian name" /></div>
-                  <div><label htmlFor="guardianPhone" className={labelCls}>Emergency Contact</label><input id="guardianPhone" type="tel" value={parentGuardianPhone} onChange={e => setParentGuardianPhone(e.target.value)} className={inputCls} placeholder="Phone" aria-label="Enter emergency phone number" /></div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div><label htmlFor="guardianName" className={labelCls}>Parent/Guardian</label><input id="guardianName" value={parentGuardianName} onChange={e => setParentGuardianName(e.target.value)} className={inputCls} placeholder="Name" aria-label="Enter parent or guardian name" /></div>
+                  <div><label htmlFor="guardianPhone" className={labelCls}>Contact Number</label><input id="guardianPhone" type="tel" value={parentGuardianPhone} onChange={e => setParentGuardianPhone(e.target.value)} className={inputCls} placeholder="Phone" aria-label="Enter emergency phone number" /></div>
+                  <div><label htmlFor="altContact" className={labelCls}>Alternative Contact</label><input id="altContact" value={alternativeContact} onChange={e => setAlternativeContact(e.target.value)} className={inputCls} placeholder="Name/Phone" aria-label="Enter alternative contact" /></div>
                 </div>
                 
                 <div><label htmlFor="location" className={labelCls}>Preferred Working Areas</label><input id="location" value={locationPreference} onChange={e => setLocationPreference(e.target.value)} className={inputCls} placeholder="e.g. Near Hubballi, Online..." aria-label="Enter location preferences" /></div>
@@ -307,15 +350,14 @@ export default function VolunteerRegisterPage() {
                   <p className="text-sm text-muted-foreground mb-4">Choose your main area of focus</p>
                 </header>
 
-                <div className="grid grid-cols-1 gap-2 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
                   {ASSISTANCE_TYPES.map(at => (
                     <button 
                       key={at} 
                       type="button" 
-                      onClick={() => { setAssistanceType(at); speak(at + " selected"); }}
-                      className={`text-left px-5 py-3.5 rounded-xl border-2 text-sm font-bold transition-all ${assistanceType === at ? "border-primary bg-primary/5 text-primary shadow-soft" : "border-border text-foreground hover:border-primary/30"}`}
-                      aria-label={"Select " + at}
-                      aria-pressed={assistanceType === at}
+                      onClick={() => toggleAssistanceType(at)}
+                      className={`text-left px-5 py-3.5 rounded-xl border-2 text-sm font-bold transition-all ${assistanceTypes.includes(at) ? "border-primary bg-primary/5 text-primary shadow-soft" : "border-border text-foreground hover:border-primary/30"}`}
+                      aria-pressed={assistanceTypes.includes(at)}
                     >
                       {at}
                     </button>
@@ -324,16 +366,9 @@ export default function VolunteerRegisterPage() {
 
                 <div className="pt-4 border-t border-border/50">
                   <h3 className="font-display font-bold text-foreground mb-3 flex items-center gap-2">
-                    <Lock size={18} className="text-primary" /> Create Account
+                    <Lock size={18} className="text-primary" /> Create Password
                   </h3>
                   <div className="space-y-3">
-                    <div>
-                      <label htmlFor="username" className={labelCls}>Username *</label>
-                      <div className="relative">
-                        <User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                        <input id="username" value={username} onChange={e => setUsername(e.target.value)} className={inputCls + " pl-10"} placeholder="Create a username" required aria-label="Enter a username" />
-                      </div>
-                    </div>
                     <div>
                       <label htmlFor="password" className={labelCls}>Password *</label>
                       <div className="relative">
@@ -342,7 +377,7 @@ export default function VolunteerRegisterPage() {
                       </div>
                     </div>
                     <div>
-                      <label htmlFor="confirmPassword" className={labelCls}>Confirm *</label>
+                      <label htmlFor="confirmPassword" className={labelCls}>Confirm Password *</label>
                       <div className="relative">
                         <Lock size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                         <input id="confirmPassword" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} className={inputCls + " pl-10"} placeholder="Repeat password" required aria-label="Confirm password" />

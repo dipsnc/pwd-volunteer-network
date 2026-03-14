@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react'
 import { Menu, X, User, Heart } from 'lucide-react'
 import { useAccessibility } from './accessibility-provider'
 import { motion, AnimatePresence } from 'framer-motion'
+import Logo from '@/public/images/logo.jpeg'
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
@@ -30,11 +31,11 @@ export function Navbar() {
       <div className="max-w-7xl mx-auto px-6 sm:px-8 lg:px-10">
         <div className="flex items-center justify-between h-16">
           <Link href="/" className="flex items-center gap-3 group" onClick={() => handleNavClick('Home')}>
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300 ${scrolled ? 'bg-primary shadow-soft' : 'bg-white/10 backdrop-blur-md'}`}>
-              <Heart className={`w-6 h-6 transition-colors ${scrolled ? 'text-primary-foreground' : 'text-white'}`} fill="currentColor" />
+            <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 ${scrolled ? 'bg-primary shadow-soft' : 'bg-white/10 backdrop-blur-md'}`}>
+              <img src={Logo.src} alt="Logo" className='w-11 h-11 rounded-full object-cover' />
             </div>
             <span className={`font-black tracking-tighter text-xl transition-colors duration-300 ${scrolled ? 'text-foreground' : 'text-white'}`}>
-              PWD Network
+              Assistly
             </span>
           </Link>
 
@@ -87,11 +88,11 @@ export function Navbar() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="md:hidden absolute top-full left-0 right-0 bg-white border-b border-border shadow-2xl overflow-hidden"
+            className="md:hidden absolute top-full left-0 right-0 bg-background dark:bg-card border-b border-border shadow-2xl overflow-hidden"
           >
             <div className="px-6 py-8 space-y-6">
               {['Home', 'About', 'How it works'].map((item) => (
-                <Link key={item} href={item === 'Home' ? '/' : `/#${item.toLowerCase().replace(/ /g, '-')}`} className="block text-2xl font-black text-[#1a202c] hover:text-primary transition-colors" onClick={() => handleNavClick(item)}>
+                <Link key={item} href={item === 'Home' ? '/' : `/#${item.toLowerCase().replace(/ /g, '-')}`} className="block text-2xl font-black text-foreground hover:text-primary transition-colors" onClick={() => handleNavClick(item)}>
                   {item}
                 </Link>
               ))}

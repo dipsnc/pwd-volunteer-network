@@ -6,7 +6,8 @@ import { motion, AnimatePresence } from "framer-motion"
 import { 
   ArrowLeft, User, Mail, Phone, MapPin, Calendar, Award, 
   BookOpen, ShieldCheck, Settings, Star, MessageSquare, 
-  Clock, Heart, GraduationCap, Trash2
+  Clock, Heart, GraduationCap, Trash2,
+  Pencil
 } from "lucide-react"
 import { DashboardSidebar } from "@/components/dashboard-sidebar"
 import { useAuth } from "@/components/auth-provider"
@@ -21,8 +22,8 @@ import { Badge } from "@/components/ui/badge"
 import CalmButton from "@/components/calm-button"
 import CalmCard from "@/components/calm-card"
 import { Spinner } from "@/components/ui/spinner"
-import { cn } from "@/lib/utils"
-import { toast } from "sonner"
+  import { cn } from "@/lib/utils"
+  import { toast } from "sonner"
 
 type TabType = 'about' | 'education' | 'reviews' | 'location'
 
@@ -190,7 +191,6 @@ export default function UniversalProfilePage() {
     { id: 'about', label: 'About', icon: User },
     { id: 'education', label: 'Education', icon: GraduationCap },
     { id: 'reviews', label: 'Reviews', icon: MessageSquare },
-    { id: 'location', label: 'Location', icon: MapPin },
   ]
 
   return (
@@ -203,7 +203,7 @@ export default function UniversalProfilePage() {
 
       <main className="lg:ml-64 min-h-screen pb-12">
         {/* Top Header/Banner */}
-        <div className="h-48 bg-gradient-to-r from-primary/20 via-primary/10 to-transparent relative group">
+        <div className="h-48 bg-gradient-to-r from-primary/20 via-primary/10 to-primary/20 relative group">
            {isOwner && (
              <button 
               onClick={() => router.push(`/dashboard/${profile.type}/profile`)}
@@ -218,16 +218,22 @@ export default function UniversalProfilePage() {
           {/* Main Profile Card */}
           <CalmCard className="p-8 md:p-12 border-none bg-card/80 backdrop-blur-2xl shadow-elevated rounded-[40px] overflow-hidden">
             <div className="flex flex-col md:flex-row items-center md:items-start gap-10">
+              
               <div className="relative group/avatar">
-                <Avatar className="w-40 h-40 border-8 border-card shadow-soft ring-2 ring-primary/20 transition-transform duration-500 group-hover/avatar:scale-105">
+                <Avatar className="w-40 h-40 border-8 border-card shadow-soft outline-2 outline-primary  transition-transform duration-500 group-hover/avatar:scale-105">
                   <AvatarFallback className="bg-primary text-primary-foreground text-5xl font-black">
-                    {profile.fullName?.substring(0, 2).toUpperCase()}
+                    {profile.profilePhotoUrl ? (
+                      <img src={profile.profilePhotoUrl} alt={profile.fullName} className="w-full h-full object-cover" />
+                    ) : (
+                      profile.fullName?.substring(0, 2).toUpperCase()
+                    )}
                   </AvatarFallback>
                 </Avatar>
                 <div className="absolute -bottom-2 -right-2 p-3 bg-primary rounded-2xl shadow-lg shadow-primary/30 text-white">
                   {isStudent ? <Heart size={20} /> : <ShieldCheck size={20} />}
                 </div>
               </div>
+              
 
               <div className="flex-1 text-center md:text-left pt-2">
                 <div className="flex flex-col md:flex-row md:items-center gap-4 mb-4 justify-center md:justify-start">
@@ -236,7 +242,13 @@ export default function UniversalProfilePage() {
                     "px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] whitespace-nowrap",
                     isStudent ? "bg-primary/20 text-primary border-primary/30" : "bg-blue-500/20 text-blue-600 border-blue-500/30"
                   )}>
-                    {isStudent ? "Individual Support" : "Impact Specialist"}
+                    {isStudent ? "Student" : "Volunteer"}
+                  </Badge>
+                  <Badge className={cn(
+                    "px-4 py-1.5 text-[10px] font-black uppercase tracking-[0.2em] whitespace-nowrap",
+                    profile.managedByGuardian ? "bg-primary/20 text-primary border-primary/30" : "bg-blue-500/20 text-blue-600 border-blue-500/30"
+                  )}>
+                    {profile.managedByGuardian ? "Managed by Guardian" : "Individual Support"}
                   </Badge>
                 </div>
 
@@ -250,11 +262,10 @@ export default function UniversalProfilePage() {
                 </div>
 
                 {/* Stats Bar */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-8">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-8">
                   {isStudent ? (
                     <>
                       <StatItem label="Disability" value={profile.disabilityType} icon={ShieldCheck} />
-                      <StatItem label="Priority" value="High" icon={Star} />
                       <StatItem label="Age" value={profile.age || "—"} icon={User} />
                       <StatItem label="Blood" value={profile.bloodGroup || "—"} icon={Heart} />
                     </>
@@ -263,7 +274,6 @@ export default function UniversalProfilePage() {
                       <StatItem label="Impact" value={`${stats.missions} Missions`} icon={Award} />
                       <StatItem label="Experience" value={`${stats.hours} Hours`} icon={Clock} />
                       <StatItem label="Rating" value="5.0" icon={Star} />
-                      <StatItem label="Reliability" value="98%" icon={ShieldCheck} />
                     </>
                   )}
                 </div>
@@ -303,7 +313,10 @@ export default function UniversalProfilePage() {
                 {activeTab === 'about' && (
                   <CalmCard className="p-10 space-y-8 bg-card/60 backdrop-blur-xl border-border/40">
                     <section>
-                      <h3 className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-4">Biography</h3>
+                      <div className="flex items-center gap-2 mb-4">
+                        <h3 className="text-xs font-black text-primary uppercase tracking-[0.2em]">Biography</h3>
+                        <span><Pencil size={14} className="text-primary" /></span>
+                      </div>
                       <p className="text-foreground/80 leading-relaxed font-medium">
                         Dedicated {profile.type} focused on building a more accessible campus community. 
                         Passionate about {isStudent ? "inclusive education" : "social impact"} and peer-to-peer support systems.
@@ -323,11 +336,9 @@ export default function UniversalProfilePage() {
                         <h3 className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-4">Preferences</h3>
                         <div className="flex flex-wrap gap-2">
                           {isStudent ? (
-                            <>
-                              <Badge variant="outline">Sign Language</Badge>
-                              <Badge variant="outline">Note Taking</Badge>
-                              <Badge variant="outline">Evening Help</Badge>
-                            </>
+                            profile.assistanceNeeds?.split(',').map((s: string) => (
+                              <Badge key={s} variant="secondary" className="px-3 py-1 font-bold">{s.trim()}</Badge>
+                            ))
                           ) : (
                             profile.skills?.split(',').map((s: string) => (
                               <Badge key={s} variant="secondary" className="px-3 py-1 font-bold">{s.trim()}</Badge>
@@ -346,7 +357,7 @@ export default function UniversalProfilePage() {
                           <GraduationCap className="w-8 h-8 text-primary" />
                        </div>
                        <div>
-                          <h3 className="text-2xl font-display font-black text-foreground mb-1">{isStudent ? "Current Curriculum" : "Academic Background"}</h3>
+                          <h3 className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-4">Education</h3>
                           <p className="text-muted-foreground font-bold">{isStudent ? profile.courseDetails : `${profile.course} • Year ${profile.year}`}</p>
                           <p className="text-sm font-medium text-foreground/70 mt-4 leading-relaxed">
                             Currently enrolled at {isStudent ? "Mumbai University" : profile.collegeName}. 
@@ -360,6 +371,7 @@ export default function UniversalProfilePage() {
                 {activeTab === 'reviews' && (
                   <div className="space-y-6">
                     {/* Add Comment */}
+                    <h3 className="text-xs font-black text-primary uppercase tracking-[0.2em] mb-4">Add Reviews</h3>
                     {firebaseUser && (
                       <CalmCard className="p-6 border-primary/20 bg-primary/5">
                         <div className="flex gap-4">
@@ -435,24 +447,6 @@ export default function UniversalProfilePage() {
                       )}
                     </div>
                   </div>
-                )}
-
-                {activeTab === 'location' && (
-                  <CalmCard className="p-10 bg-card/60 backdrop-blur-xl">
-                    <div className="flex items-start gap-4 mb-6">
-                      <div className="p-3 bg-primary/10 rounded-xl">
-                        <MapPin className="text-primary w-6 h-6" />
-                      </div>
-                      <div>
-                        <h3 className="text-2xl font-display font-black text-foreground">Operational Area</h3>
-                        <p className="text-muted-foreground font-bold">Mumbai Metropolitan Region (MMR)</p>
-                      </div>
-                    </div>
-                    <div className="aspect-video bg-muted/50 rounded-[32px] border-2 border-dashed border-border/50 flex flex-col items-center justify-center gap-4 group">
-                       <MapPin className="w-12 h-12 text-muted-foreground/50 group-hover:scale-110 transition-transform" />
-                       <p className="text-xs font-black text-muted-foreground uppercase tracking-widest">MAP VIEW COMING SOON</p>
-                    </div>
-                  </CalmCard>
                 )}
               </motion.div>
             </AnimatePresence>

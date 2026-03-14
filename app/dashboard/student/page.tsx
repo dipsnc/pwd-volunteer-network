@@ -18,40 +18,7 @@ import { useAuth } from '@/components/auth-provider'
 import { db } from '@/lib/firebase'
 import { collection, query, where, onSnapshot, doc, getDoc, orderBy } from 'firebase/firestore'
 
-const MOCK_REQUESTS: VolunteerRequest[] = [
-  {
-    id: 'mock-1',
-    studentId: 'system',
-    studentName: 'Aarav Sharma',
-    studentAvatar: '',
-    title: 'Scribe for Mathematics Exam',
-    description: 'Need a scribe for the upcoming calculus midterm on Monday. Experience with math notation preferred.',
-    date: '2026-03-15',
-    time: '14:00',
-    urgency: 'high',
-    tasks: ['Write down equations', 'Diagram sketching', 'Text transcription'],
-    categoryTags: ['Scribe', 'Cognitive Support'],
-    location: { lat: 19.1136, lng: 72.8697, address: 'Mathematics Dept, Room 302, Mumbai' },
-    status: 'open',
-    createdAt: new Date(Date.now() - 86400000).toISOString()
-  },
-  {
-    id: 'mock-2',
-    studentId: 'system',
-    studentName: 'Priya Iyer',
-    studentAvatar: '',
-    title: 'Lab Assistant for Chemistry',
-    description: 'Looking for someone to help handle glassware and record observations during the organic chemistry lab.',
-    date: '2026-03-16',
-    time: '10:00',
-    urgency: 'medium',
-    tasks: ['Equipment setup', 'Data entry', 'Cleanup assistance'],
-    categoryTags: ['Lab Assistant', 'Physical Mobility'],
-    location: { lat: 19.1140, lng: 72.8700, address: 'Science Block B, Lab 4, Mumbai' },
-    status: 'assigned',
-    createdAt: new Date(Date.now() - 172800000).toISOString()
-  }
-]
+
 
 export default function StudentDashboardPage() {
   const [scheduleView, setScheduleView] = useState<'week' | 'month'>('week')
@@ -101,7 +68,7 @@ export default function StudentDashboardPage() {
         ...doc.data()
       })) as VolunteerRequest[];
       
-      const combined = [...MOCK_REQUESTS, ...dbRequests];
+      const combined = [...dbRequests];
       setRequests(combined);
       
       if (combined.length > 0 && !selectedStatusRequestId) {
@@ -109,7 +76,7 @@ export default function StudentDashboardPage() {
       }
     }, (error) => {
       console.error("Error fetching requests:", error);
-      setRequests(MOCK_REQUESTS);
+      setRequests([]);
     });
 
     // Listen to applications to count them
