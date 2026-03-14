@@ -207,6 +207,8 @@ export default function StudentRegisterPage() {
         disabilityTypes,
         disabilityCertificateUrl,
         assistanceNeeds,
+        verificationStatus: 'pending' as const,
+        lastActiveAt: new Date().toISOString(),
         createdAt: new Date().toISOString()
       };
 
@@ -219,8 +221,8 @@ export default function StudentRegisterPage() {
 await setDoc(doc(db, "students", firebaseUser.uid), cleanData);
 
       // Legacy support (optional, but keeps existing pages working if they use lib/store)
-      saveStudent({ ...userData, age: String(userData.age), id: firebaseUser.uid, password } as any); 
-      setCurrentUser({ ...userData, age: String(userData.age), id: firebaseUser.uid, password } as any);
+      saveStudent({ ...userData, age: String(userData.age), id: firebaseUser.uid } as any); 
+      setCurrentUser({ ...userData, age: String(userData.age), id: firebaseUser.uid } as any);
 
       toast.success("Account Created!", {
         description: "Welcome to the community, " + fullName + "!",

@@ -10,7 +10,7 @@ interface CalmButtonProps {
   icon?: React.ReactNode
   variant?: "primary" | "secondary" | "emergency" | "outline"
   audioLabel?: string
-  onClick?: () => void
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void
   className?: string
   type?: "button" | "submit"
   disabled?: boolean
@@ -26,9 +26,9 @@ const variantClasses = {
 const CalmButton: React.FC<CalmButtonProps> = ({ children, icon, variant = "primary", audioLabel, onClick, className = "", type = "button", disabled = false }) => {
   const { speak } = useAccessibility()
 
-  const handleClick = () => {
+  const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (audioLabel) speak(audioLabel)
-    onClick?.()
+    onClick?.(e)
   }
 
   return (

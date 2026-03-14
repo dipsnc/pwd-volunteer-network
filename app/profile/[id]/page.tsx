@@ -15,7 +15,7 @@ import { db } from "@/lib/firebase"
 import { 
   doc, getDoc, collection, query, where, 
   onSnapshot, addDoc, serverTimestamp, deleteDoc,
-  orderBy
+  orderBy, updateDoc
 } from "firebase/firestore"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -38,6 +38,9 @@ export default function UniversalProfilePage() {
   const [stats, setStats] = useState({ missions: 0, hours: 0 })
   const [comments, setComments] = useState<any[]>([])
   const [newComment, setNewComment] = useState("")
+  const [isEditingBio, setIsEditingBio] = useState(false)
+  const [editedBio, setEditedBio] = useState("")
+  const [isSavingBio, setIsSavingBio] = useState(false)
 
   const userId = params.id as string
   const isOwner = firebaseUser?.uid === userId
@@ -90,6 +93,12 @@ export default function UniversalProfilePage() {
 
     if (userId) fetchProfile()
   }, [userId])
+
+  useEffect(() => {
+    if (profile?.bio) {
+      setEditedBio(profile.bio)
+    }
+  }, [profile])
 
   useEffect(() => {
     if (!profile || profile.type !== 'volunteer') return
@@ -164,6 +173,28 @@ export default function UniversalProfilePage() {
       toast.success("Comment deleted")
     } catch (error) {
       toast.error("Failed to delete comment")
+    }
+  }
+
+  const handleSaveBio = async () => {
+    if (!profile || !editedBio.trim() || isSavingBio) return
+    
+    setIsSavingBio(true)
+    try {
+      const collectionName = profile.type === 'student' ? 'students' : 'volunteers'
+      await updateDoc(doc(db, collectionName, userId), {
+        bio: editedBio.trim(),
+        updatedAt: serverTimestamp()
+      })
+      
+      setProfile({ ...profile, bio: editedBio.trim() })
+      setIsEditingBio(false)
+      toast.success("Bio updated successfully!")
+    } catch (error) {
+      console.error("Error updating bio:", error)
+      toast.error("Failed to update bio")
+    } finally {
+      setIsSavingBio(false)
     }
   }
 
@@ -265,7 +296,15 @@ export default function UniversalProfilePage() {
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-8">
                   {isStudent ? (
                     <>
-                      <StatItem label="Disability" value={profile.disabilityType} icon={ShieldCheck} />
+                      <StatItem 
+                        label="Disability" 
+                        value={
+                          profile.disabilityType || 
+                          profile.disabilityTypes?.[0] || 
+                          "—"
+                        } 
+                        icon={ShieldCheck} 
+                      />
                       <StatItem label="Age" value={profile.age || "—"} icon={User} />
                       <StatItem label="Blood" value={profile.bloodGroup || "—"} icon={Heart} />
                     </>
@@ -313,15 +352,56 @@ export default function UniversalProfilePage() {
                 {activeTab === 'about' && (
                   <CalmCard className="p-10 space-y-8 bg-card/60 backdrop-blur-xl border-border/40">
                     <section>
-                      <div className="flex items-center gap-2 mb-4">
+                      <div className="flex items-center justify-between mb-4">
                         <h3 className="text-xs font-black text-primary uppercase tracking-[0.2em]">Biography</h3>
-                        <span><Pencil size={14} className="text-primary" /></span>
+                        {isOwner && !isEditingBio && (
+                          <button 
+                            onClick={() => {
+                              setEditedBio(profile.bio || `Dedicated ${profile.type} focused on building a more accessible campus community. Passionate about ${isStudent ? "inclusive education" : "social impact"} and peer-to-peer support systems. Always looking for new ways to contribute to the university network.`)
+                              setIsEditingBio(true)
+                            }}
+                            className="p-2 hover:bg-primary/10 rounded-lg transition-colors text-primary"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        )}
                       </div>
-                      <p className="text-foreground/80 leading-relaxed font-medium">
-                        Dedicated {profile.type} focused on building a more accessible campus community. 
-                        Passionate about {isStudent ? "inclusive education" : "social impact"} and peer-to-peer support systems.
-                        Always looking for new ways to contribute to the university network.
-                      </p>
+                      
+                      {isEditingBio ? (
+                        <div className="space-y-4">
+                          <textarea 
+                            className="w-full bg-background/50 border-2 border-border/50 rounded-2xl p-4 text-sm font-medium focus:border-primary outline-none transition-all resize-none min-h-[150px]"
+                            value={editedBio}
+                            onChange={(e) => setEditedBio(e.target.value)}
+                            placeholder="Tell us about yourself..."
+                          />
+                          <div className="flex justify-end gap-3">
+                            <button 
+                              onClick={() => setIsEditingBio(false)}
+                              className="px-6 py-2 rounded-xl text-xs font-bold text-muted-foreground hover:bg-muted transition-all"
+                            >
+                              Cancel
+                            </button>
+                            <CalmButton 
+                              onClick={handleSaveBio}
+                              disabled={isSavingBio || !editedBio.trim()}
+                              className="px-6 py-2 rounded-xl text-xs"
+                            >
+                              {isSavingBio ? "Saving..." : "Save Bio"}
+                            </CalmButton>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-foreground/80 leading-relaxed font-medium">
+                          {profile.bio || (
+                            <>
+                              Dedicated {profile.type} focused on building a more accessible campus community. 
+                              Passionate about {isStudent ? "inclusive education" : "social impact"} and peer-to-peer support systems.
+                              Always looking for new ways to contribute to the university network.
+                            </>
+                          )}
+                        </p>
+                      )}
                     </section>
                     
                     <section className="grid md:grid-cols-2 gap-8 pt-8 border-t border-border/30">
@@ -361,7 +441,7 @@ export default function UniversalProfilePage() {
                           <p className="text-muted-foreground font-bold">{isStudent ? profile.courseDetails : `${profile.course} • Year ${profile.year}`}</p>
                           <p className="text-sm font-medium text-foreground/70 mt-4 leading-relaxed">
                             Currently enrolled at {isStudent ? "Mumbai University" : profile.collegeName}. 
-                            Specializing in {isStudent ? "Arts & Humanities" : "Community Welfare"} with a focus on practical application.
+                            Specializing in {isStudent ? profile.courseDetails: profile.course} with a focus on practical application.
                           </p>
                        </div>
                     </div>
@@ -376,8 +456,9 @@ export default function UniversalProfilePage() {
                       <CalmCard className="p-6 border-primary/20 bg-primary/5">
                         <div className="flex gap-4">
                           <Avatar className="w-12 h-12 shadow-soft">
-                            <AvatarFallback className="bg-primary text-primary-foreground font-black">
-                              {firebaseUser.email?.substring(0, 2).toUpperCase()}
+                            <AvatarImage src={firebaseUser.photoURL || ""} alt={firebaseUser.displayName || ""} className="object-cover" />
+                            <AvatarFallback className="bg-primary text-primary-foreground font-black text-sm">
+                              {(firebaseUser.displayName || firebaseUser.email || "??").substring(0, 2).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex-1 space-y-4">

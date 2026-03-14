@@ -82,7 +82,7 @@ export default function VolunteerApplicationModal({
       } else {
         // Create new application
         const applicationData = {
-          requestId: request.id,
+          requestId: request.uid,
           requestTitle: request.title,
           studentId: request.studentId,
           studentName: request.studentName,
@@ -229,7 +229,7 @@ export default function VolunteerApplicationModal({
                 <div className="rounded-3xl border border-border overflow-hidden h-40 shadow-soft bg-muted/20">
                    {showMap ? (
                      <LocationPicker 
-                      key={request.id}
+                      key={request.uid}
                       currentLocation={request.location} 
                       disabled={true} 
                       hideSearch={true}

@@ -21,68 +21,6 @@ const filters: { id: FilterType; label: string }[] = [
   { id: 'urgent', label: 'Urgent' },
 ]
 
-const allRequests = [
-  {
-    id: 1,
-    title: 'Community Garden Mulching',
-    description: 'Help prepare our community gardens for the spring season. All tools provided.',
-    duration: '3 hours',
-    location: { address: 'Downtown Hub, City Center', lat: 0, lng: 0 },
-    locationType: 'nearby',
-    urgent: false,
-    icon: Home,
-  },
-  {
-    id: 2,
-    title: 'Senior Tech Support',
-    description: 'Help seniors navigate video calls and basic tablet settings from the comfort of home.',
-    duration: '1 hour',
-    location: { address: 'Remote Support, Digital', lat: 0, lng: 0 },
-    locationType: 'remote',
-    urgent: false,
-    icon: Wifi,
-  },
-  {
-    id: 3,
-    title: 'Food Bank Sorting',
-    description: 'Assist with organizing incoming food donations and preparing distribution packages.',
-    duration: '4 hours',
-    location: { address: 'West Side Center, Campus', lat: 0, lng: 0 },
-    locationType: 'nearby',
-    urgent: true,
-    icon: Home,
-  },
-  {
-    id: 4,
-    title: 'Morning Dog Walking',
-    description: 'Help our energetic shelter residents get their morning exercise and fresh air.',
-    duration: '2 hours',
-    location: { address: 'Happy Tails Shelter, Bark Park', lat: 0, lng: 0 },
-    locationType: 'nearby',
-    urgent: false,
-    icon: PawPrint,
-  },
-  {
-    id: 5,
-    title: 'Online Tutoring - Math',
-    description: 'Provide online tutoring support for high school algebra and geometry students.',
-    duration: '2 hours',
-    location: { address: 'Remote Support', lat: 0, lng: 0 },
-    locationType: 'remote',
-    urgent: false,
-    icon: BookOpen,
-  },
-  {
-    id: 6,
-    title: 'Campus Accessibility Escort',
-    description: 'Assist students with mobility needs navigating between campus buildings.',
-    duration: '1.5 hours',
-    location: { address: 'University Campus, Main Hall', lat: 0, lng: 0 },
-    locationType: 'nearby',
-    urgent: true,
-    icon: Users,
-  },
-]
 
 export default function VolunteerRequestsPage() {
   const [activeFilter, setActiveFilter] = useState<FilterType>('all')
@@ -142,11 +80,11 @@ export default function VolunteerRequestsPage() {
         };
       });
       
-      const combined = [...allRequests, ...dbRequests];
+      const combined = [...dbRequests];
       setRequests(combined);
     }, (error) => {
       console.error("Error fetching requests for volunteer:", error);
-      setRequests(allRequests);
+      setRequests([]);
     });
 
     // Listen to volunteer's applications for 'Applied' status

@@ -15,6 +15,7 @@ import { doc, getDoc, updateDoc, deleteDoc } from "firebase/firestore"
 import { deleteUser } from "firebase/auth"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
 import { AlertTriangle, Trash2 } from "lucide-react"
+import { playAudioMessage } from "@/lib/audio"
 
 const LANGUAGES = ["English", "Hindi", "Marathi"]
 
@@ -160,7 +161,8 @@ export default function StudentProfilePage() {
               <p className="text-muted-foreground font-medium">Customize your presence and account preferences.</p>
             </div>
             <button 
-              onClick={() => router.push(`/profile/${firebaseUser.uid}`)}
+              onClick={() => { playAudioMessage("Viewing public profile"); router.push(`/profile/${firebaseUser.uid}`); }}
+              aria-label="View Public Profile"
               className="px-6 py-3 bg-muted hover:bg-muted/80 rounded-2xl text-sm font-bold transition-all flex items-center gap-2 shadow-soft"
             >
               <User size={18} /> View Public Profile
@@ -175,7 +177,8 @@ export default function StudentProfilePage() {
               {sections.map(s => (
                 <button 
                   key={s.id} 
-                  onClick={() => { setActiveSection(s.id); speak(`Switching to ${s.label} section`); }}
+                  onClick={() => { setActiveSection(s.id); speak(`Switching to ${s.label} section`); playAudioMessage(`Switching to ${s.label} section`); }}
+                  aria-label={`Switch to ${s.label} section`}
                   className={`flex items-center gap-3 px-5 py-3.5 rounded-2xl text-sm font-bold whitespace-nowrap transition-all ${
                     activeSection === s.id 
                     ? "gradient-primary text-primary-foreground shadow-soft" 
@@ -202,14 +205,21 @@ export default function StudentProfilePage() {
                       <ProfileField label="Phone" value={profileData.phone} icon={<Phone className="w-4 h-4" />} />
                       <ProfileField label="Email" value={profileData.email} icon={<Mail className="w-4 h-4" />} />
                       <ProfileField label="Blood Group" value={profileData.bloodGroup || "—"} />
-                      <ProfileField label="Age" value={profileData.age || "—"} />
+                      <ProfileField label="Age" value={profileData.age?.toString() || "—"} />
                     </div>
                   </div>
 
                   <div className="pt-8 border-t border-border/50">
                     <h3 className="font-display text-xl font-bold text-foreground mb-6">Disability & Support</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <ProfileField label="Disability Type" value={profileData.disabilityType} />
+                      <ProfileField 
+                        label="Disability Type" 
+                        value={
+                          profileData.disabilityTypes?.join(", ") || 
+                          profileData.disabilityType || 
+                          "—"
+                        } 
+                      />
                       <ProfileField label="Weight" value={profileData.weight ? `${profileData.weight} kg` : "—"} />
                       <ProfileField label="Height" value={profileData.height ? `${profileData.height} cm` : "—"} />
                       <ProfileField label="Enrolled in College" value={profileData.enrolledInCollege ? "Yes" : "No"} />
@@ -229,7 +239,8 @@ export default function StudentProfilePage() {
                     {LANGUAGES.map(l => (
                       <button 
                         key={l} 
-                        onClick={() => { setLanguage(l); toast.success(`Language set to ${l}`); speak(`Language changed to ${l}`); }}
+                        onClick={() => { setLanguage(l); toast.success(`Language set to ${l}`); speak(`Language changed to ${l}`); playAudioMessage(`Language changed to ${l}`); }}
+                        aria-label={`Set preferred language to ${l}`}
                         className={`w-full text-left px-5 py-4 rounded-2xl border-2 font-bold transition-all flex items-center justify-between ${
                           language === l 
                           ? "border-primary bg-primary/5 text-primary" 
@@ -274,7 +285,8 @@ export default function StudentProfilePage() {
                       {(["small", "medium", "large", "xlarge"] as const).map(s => (
                         <button 
                           key={s} 
-                          onClick={() => { setTextSize(s); speak(`Text size set to ${s}`); }}
+                          onClick={() => { setTextSize(s); speak(`Text size set to ${s}`); playAudioMessage(`Text size set to ${s}`); }}
+                          aria-label={`Set text size to ${s}`}
                           className={`flex-1 py-3 rounded-lg text-xs font-black transition-all ${
                             textSize === s 
                             ? "gradient-primary text-primary-foreground shadow-soft" 
@@ -304,8 +316,9 @@ export default function StudentProfilePage() {
                       />
                     </div>
                     <CalmButton 
-                      onClick={handlePasswordChange}
+                      onClick={() => { handlePasswordChange(); playAudioMessage("Attempting to update password"); }}
                       className="w-full"
+                      audioLabel="Update Password"
                     >
                       Update Password
                     </CalmButton>
@@ -333,6 +346,7 @@ export default function StudentProfilePage() {
                       onClick={handleContactUpdate}
                       className="w-full"
                       variant="primary"
+                      audioLabel="Save Contact Changes"
                     >
                       Save Contact Changes
                     </CalmButton>
@@ -359,7 +373,7 @@ export default function StudentProfilePage() {
                     <div className="pt-4">
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <button className="px-6 py-3 bg-destructive text-destructive-foreground rounded-xl font-bold text-sm hover:bg-destructive/90 transition-all flex items-center gap-2">
+                          <button onClick={() => playAudioMessage("Opening account deletion warning")} aria-label="Delete Account Permanently" className="px-6 py-3 bg-destructive text-destructive-foreground rounded-xl font-bold text-sm hover:bg-destructive/90 transition-all flex items-center gap-2">
                             <Trash2 size={16} /> Delete Account Permanently
                           </button>
                         </AlertDialogTrigger>
@@ -395,6 +409,7 @@ export default function StudentProfilePage() {
             {/* Logout Action */}
             <button 
               onClick={handleSignOut}
+              aria-label="Sign Out of Account"
               className="w-full mt-6 py-4 rounded-2xl border-2 border-destructive/20 text-destructive font-display font-black text-sm flex items-center justify-center gap-2 hover:bg-destructive hover:text-destructive-foreground transition-all active:scale-95"
             >
               <LogOut size={18} /> Sign Out of Account

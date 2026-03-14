@@ -11,6 +11,8 @@ import { toast } from "sonner";
 import { Badge } from "./ui/badge";
 import { createChat } from "@/lib/chat-utils";
 import Link from "next/link";
+import { cn } from "@/lib/utils";
+import { playAudioMessage } from "@/lib/audio";
 
 
 interface ApplicantReviewModalProps {
@@ -25,9 +27,13 @@ export default function ApplicantReviewModal({ request, onClose }: ApplicantRevi
   const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
+    playAudioMessage("Review applicants modal opened.");
+  }, []);
+
+  useEffect(() => {
     const q = query(
       collection(db, "applications"),
-      where("requestId", "==", request.id)
+      where("requestId", "==", request.uid)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -36,7 +42,7 @@ export default function ApplicantReviewModal({ request, onClose }: ApplicantRevi
     });
 
     return () => unsubscribe();
-  }, [request.id]);
+  }, [request.uid]);
 
   const handleAcceptVolunteer = async (app: any) => {
     setIsProcessing(true);
@@ -48,7 +54,7 @@ export default function ApplicantReviewModal({ request, onClose }: ApplicantRevi
       });
 
       // 2. Update request status
-      await updateDoc(doc(db, "requests", request.id), {
+      await updateDoc(doc(db, "requests", request.uid), {
         status: 'assigned',
         volunteerId: app.volunteerId,
         volunteerName: app.volunteerName,
@@ -65,15 +71,17 @@ export default function ApplicantReviewModal({ request, onClose }: ApplicantRevi
       }
 
       // 4. Create chat session
-      await createChat(request.id, request.studentId, app.volunteerId);
+      await createChat(request.uid, request.studentId, app.volunteerId);
 
       toast.success("Volunteer Accepted!", {
         description: `${app.volunteerName} has been assigned to this mission.`,
       });
+      playAudioMessage(`Volunteer ${app.volunteerName} has been accepted.`);
       onClose();
     } catch (error) {
       console.error("Error accepting volunteer:", error);
       toast.error("Failed to accept volunteer.");
+      playAudioMessage("Failed to accept volunteer.");
     } finally {
       setIsProcessing(false);
     }
@@ -91,9 +99,9 @@ export default function ApplicantReviewModal({ request, onClose }: ApplicantRevi
       >
         {/* Left Side: Applicant List */}
         <div className="w-full md:w-80 border-r border-border bg-muted/10 flex flex-col h-full overflow-hidden shrink-0">
-          <div className="p-6 border-b border-border space-y-1">
-            <h3 className="font-display font-bold text-foreground text-lg">Applicants</h3>
-            <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest">
+          <div className="p-6 border-b border-border bg-card/50">
+            <h3 className="font-display font-black text-foreground text-xl tracking-tight">Applicants</h3>
+            <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mt-1 opacity-80">
               {loading ? "Loading..." : `${applicants.length} PEOPLE APPLIED`}
             </p>
           </div>
@@ -102,7 +110,11 @@ export default function ApplicantReviewModal({ request, onClose }: ApplicantRevi
             {applicants.map((app) => (
               <button
                 key={app.id}
-                onClick={() => setSelectedApplicantId(app.id)}
+                onClick={() => {
+                  setSelectedApplicantId(app.id);
+                  playAudioMessage(`Viewing applicant ${app.volunteerName}`);
+                }}
+                aria-label={`View applicant ${app.volunteerName}`}
                 className={`w-full p-4 rounded-2xl flex items-center gap-4 transition-all text-left group ${
                   selectedApplicantId === app.id 
                     ? 'bg-primary shadow-soft text-primary-foreground' 
@@ -138,7 +150,8 @@ export default function ApplicantReviewModal({ request, onClose }: ApplicantRevi
         {/* Right Side: Applicant Details */}
         <div className="flex-1 flex flex-col overflow-hidden relative">
           <button 
-            onClick={onClose} 
+            onClick={() => { playAudioMessage("Closing applicant review modal"); onClose(); }} 
+            aria-label="Close applicant review modal"
             className="absolute top-6 right-6 p-2 hover:bg-muted rounded-xl transition-all text-muted-foreground hover:text-foreground z-10"
           >
             <X size={20} />
@@ -147,18 +160,20 @@ export default function ApplicantReviewModal({ request, onClose }: ApplicantRevi
           {selectedApplicant ? (
             <div className="flex-1 flex flex-col min-h-0 overflow-y-auto p-8 pt-10 custom-scrollbar space-y-8 animate-in fade-in slide-in-from-right-4 duration-500">
               {/* Profile Header */}
-              <div className="flex items-start gap-6">
-                 <div className="w-20 h-20 rounded-[32px] bg-primary/10 flex items-center justify-center border border-primary/20 shadow-soft">
-                   <User className="text-primary w-10 h-10" />
+              <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 text-center sm:text-left">
+                 <div className="w-24 h-24 rounded-[40px] bg-primary/10 flex items-center justify-center border-2 border-primary/20 shadow-soft shrink-0 group-hover:scale-105 transition-transform duration-500">
+                    <User className="text-primary w-12 h-12" />
                  </div>
-                 <div className="space-y-2 pt-1">
-                    <h2 className="text-3xl font-display font-bold text-foreground">{selectedApplicant.volunteerName}</h2>
-                    <div className="flex items-center gap-2">
-                       <Badge variant="outline" className="text-[10px] font-black border-primary/20 bg-primary/5 text-primary tracking-widest uppercase">
+                 <div className="space-y-3 pt-2">
+                    <h2 className="text-3xl sm:text-4xl font-display font-black text-foreground tracking-tight">
+                      {selectedApplicant.volunteerName.split(' ')[0]} <span className="text-primary not-italic">{selectedApplicant.volunteerName.split(' ').slice(1).join(' ')}</span>
+                    </h2>
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
+                       <Badge variant="outline" className="text-[10px] font-black border-primary/30 bg-primary/5 text-primary tracking-[0.2em] uppercase px-3 py-1">
                          Volunteer Proposal
                        </Badge>
-                       <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 border-l border-border pl-3">
-                         <Calendar size={12} className="text-primary" /> Applied on {new Date(selectedApplicant.createdAt?.seconds * 1000).toLocaleDateString()}
+                       <span className="text-xs font-bold text-muted-foreground flex items-center gap-2 sm:border-l sm:border-border sm:pl-3 opacity-70">
+                         <Calendar size={14} className="text-primary/60" /> Applied {new Date(selectedApplicant.createdAt?.seconds * 1000).toLocaleDateString()}
                        </span>
                     </div>
                  </div>
@@ -184,19 +199,21 @@ export default function ApplicantReviewModal({ request, onClose }: ApplicantRevi
               </div>
 
               <div className="space-y-4">
-                 <h4 className="text-sm font-display font-bold text-foreground px-1">Logistics & Flexibility</h4>
-                 <div className="grid grid-cols-3 gap-3">
-                    <div className="p-4 rounded-2xl bg-muted/50 border border-border">
-                       <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">FLEXIBILITY</p>
-                       <p className="text-xs font-bold text-foreground capitalize">{selectedApplicant.flexibility}</p>
+                 <h4 className="text-xs font-black text-foreground uppercase tracking-[0.2em] px-1 opacity-60">Logistics & Flexibility</h4>
+                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="p-5 rounded-3xl bg-muted/30 border border-border/50 group hover:border-primary/20 transition-all">
+                       <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2 opacity-70">FLEXIBILITY</p>
+                       <p className="text-sm font-black text-foreground tracking-tight capitalize">{selectedApplicant.flexibility}</p>
                     </div>
-                    <div className="p-4 rounded-2xl bg-muted/50 border border-border">
-                       <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">AVAILABILITY</p>
-                       <p className="text-xs font-bold text-foreground">Matches Schedule</p>
+                    <div className="p-5 rounded-3xl bg-muted/30 border border-border/50 group hover:border-primary/20 transition-all">
+                       <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2 opacity-70">AVAILABILITY</p>
+                       <p className="text-sm font-black text-foreground tracking-tight text-primary">Matches Schedule</p>
                     </div>
-                    <div className="p-4 rounded-2xl bg-muted/50 border border-border">
-                       <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">STATUS</p>
-                       <p className={`text-xs font-bold ${selectedApplicant.status === 'pending' ? 'text-orange-500' : 'text-green-500'} capitalize`}>
+                    <div className="p-5 rounded-3xl bg-muted/30 border border-border/50 group hover:border-primary/20 transition-all">
+                       <p className="text-[10px] font-black text-muted-foreground uppercase tracking-[0.2em] mb-2 opacity-70">STATUS</p>
+                       <p className={cn("text-sm font-black tracking-tight capitalize", 
+                         selectedApplicant.status === 'pending' ? 'text-orange-500' : 'text-green-500'
+                       )}>
                          {selectedApplicant.status}
                        </p>
                     </div>
@@ -215,7 +232,7 @@ export default function ApplicantReviewModal({ request, onClose }: ApplicantRevi
               {/* Action */}
               <div className="pt-6 border-t border-border mt-auto">
                 {selectedApplicant.status === 'accepted' ? (
-                  <Link href={`/dashboard/chat/${request.id}`} className="block w-full">
+                  <Link href={`/dashboard/chat/${request.uid}`} className="block w-full" aria-label={`Open chat with ${selectedApplicant.volunteerName.split(' ')[0]}`} onClick={() => playAudioMessage("Opening chat")}>
                     <CalmButton className="w-full py-6 rounded-2xl text-base bg-blue-600 hover:bg-blue-700">
                       Open Chat with {selectedApplicant.volunteerName.split(' ')[0]}
                     </CalmButton>
@@ -225,6 +242,7 @@ export default function ApplicantReviewModal({ request, onClose }: ApplicantRevi
                     className="w-full py-6 rounded-2xl text-base"
                     disabled={selectedApplicant.status !== 'pending' || isProcessing}
                     onClick={() => handleAcceptVolunteer(selectedApplicant)}
+                    aria-label={`Accept ${selectedApplicant.volunteerName.split(' ')[0]} as volunteer`}
                   >
                     {isProcessing ? "Processing..." : 
                      selectedApplicant.status === 'declined' ? "Declined" :

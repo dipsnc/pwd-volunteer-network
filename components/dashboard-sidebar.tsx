@@ -12,6 +12,7 @@ import {
 import { cn } from '@/lib/utils'
 import { clearCurrentUser } from '@/lib/store'
 import { useAuth } from './auth-provider'
+import Logo from '@/public/images/logo.jpeg'
 
 interface SidebarLink {
   href: string
@@ -52,8 +53,8 @@ export function DashboardSidebar({ type, userName, userId, userAvatar }: Dashboa
   const { logout } = useAuth()
   
   const links = type === 'student' ? studentLinks : type === 'volunteer' ? volunteerLinks : adminLinks
-  const brandName = type === 'student' ? 'Student Portal' : type === 'volunteer' ? 'ImpactPortal' : 'Admin Console'
-  const subtitle = type === 'student' ? 'University Access' : type === 'volunteer' ? 'Volunteer Network' : 'Management Portal'
+  const brandName = type === 'student' ? 'Student Portal' : type === 'volunteer' ? 'Volunteer Portal' : 'Admin Console'
+  const subtitle = type === 'student' ? 'Assistly' : type === 'volunteer' ? 'Assistly' : 'Assistly'
 
   return (
     <>
@@ -82,14 +83,8 @@ export function DashboardSidebar({ type, userName, userId, userAvatar }: Dashboa
         {/* Brand */}
         <div className="p-6 border-b border-border">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
-              {type === 'student' ? (
-                <FileText className="w-5 h-5 text-primary-foreground" />
-              ) : type === 'volunteer' ? (
-                <Users className="w-5 h-5 text-primary-foreground" />
-              ) : (
-                <Shield className="w-5 h-5 text-primary-foreground" />
-              )}
+            <div className="w-10 h-10 rounded-full flex items-center justify-center">
+              <img src={Logo.src} alt="" className='rounded-full' />
             </div>
             <div>
               <h1 className="font-bold text-foreground">{brandName}</h1>

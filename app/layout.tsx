@@ -12,7 +12,7 @@ const dmSans = DM_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'PWD Volunteer Network',
+  title: 'Assistly - PWD Volunteer Network',
   description: 'Support for the people, by the people. Connecting students with disabilities to verified volunteers.',
   generator: 'v0.app',
   icons: {

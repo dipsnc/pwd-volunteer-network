@@ -167,6 +167,8 @@ export default function VolunteerRegisterPage() {
         skills,
         assistanceTypes,
         status: 'pending' as const,
+        verificationStatus: 'pending' as const,
+        lastActiveAt: new Date().toISOString(),
         completedMissions: 0,
         rating: null,
         createdAt: new Date().toISOString()

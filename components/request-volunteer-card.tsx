@@ -19,13 +19,15 @@ export default function RequestVolunteerCard({ onClick }: RequestVolunteerCardPr
           <Plus size={32} strokeWidth={3} />
         </div>
         <div>
-          <h3 className="text-xl font-display font-bold text-foreground leading-none mb-2">Request a <span className="text-primary">Volunteer</span></h3>
-          <p className="text-xs text-muted-foreground font-bold  opacity-80 max-w-[240px] mx-auto">
+          <h3 className="text-xl sm:text-2xl font-display font-black text-foreground leading-tight tracking-tight mb-2">
+            Request a <span className="text-primary italic">Volunteer</span>
+          </h3>
+          <p className="text-xs text-muted-foreground font-bold opacity-80 max-w-[240px] mx-auto leading-relaxed">
             Need assistance with notes, lab work, or navigation?
           </p>
         </div>
-        <div className="flex items-center gap-2 text-[10px] font-bold text-primary px-5 py-2.5 bg-primary/10 rounded-xl border border-primary/20 shadow-soft">
-          <Users size={12} strokeWidth={3} /> 50+ Qualified Volunteers
+        <div className="flex items-center gap-2 text-xs font-black text-primary px-5 py-3 bg-primary/10 rounded-xl border border-primary/20 shadow-soft uppercase tracking-widest">
+          <Users size={14} strokeWidth={3} /> 50+ Qualified Volunteers
         </div>
       </div>
       

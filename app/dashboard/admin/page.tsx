@@ -5,13 +5,17 @@ import { DashboardSidebar } from '@/components/dashboard-sidebar'
 import { 
   Search, Bell, User, Users, FileCheck, ClipboardList, 
   AlertTriangle, TrendingUp, TrendingDown, Clock, School, 
-  Megaphone, ChevronRight
+  Megaphone, ChevronRight,
+  Link
 } from 'lucide-react'
 import { db } from "@/lib/firebase"
 import { collection, query, onSnapshot, orderBy, limit } from "firebase/firestore"
 import { cn } from "@/lib/utils"
+import { StatCard } from "@/components/admin/stat-card"
+import { useRouter } from "next/navigation"
 
 export default function AdminDashboardPage() {
+  const router = useRouter()
   const [counts, setCounts] = useState({
     volunteers: 0,
     pendingVolunteers: 0,
@@ -121,7 +125,10 @@ export default function AdminDashboardPage() {
               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                 <ClipboardList className="w-4 h-4 text-primary-foreground" />
               </div>
-              <h1 className="text-xl font-bold text-foreground">Dashboard Overview</h1>
+              <div>
+                <h1 className="text-xl font-bold text-foreground">Dashboard Overview</h1>
+                <p className="text-[10px] md:text-xs font-medium text-muted-foreground -mt-0.5 uppercase tracking-wider">Platform Monitoring & Analytics</p>
+              </div>
             </div>
             <div className="flex items-center gap-4">
               <div className="hidden md:flex items-center gap-2 bg-muted rounded-xl px-4 py-2">
@@ -132,35 +139,17 @@ export default function AdminDashboardPage() {
                   className="bg-transparent border-none outline-none text-sm w-32 text-foreground placeholder:text-muted-foreground"
                 />
               </div>
-              <button className="p-2 rounded-xl hover:bg-muted transition-colors relative">
-                <Bell className="w-5 h-5 text-muted-foreground" />
-              </button>
-              <button className="p-2 rounded-xl hover:bg-muted transition-colors">
-                <User className="w-5 h-5 text-muted-foreground" />
-              </button>
             </div>
           </div>
         </header>
 
         <div className="p-6 space-y-6">
           {/* Stats Row */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            {stats.map((stat) => (
-              <div key={stat.label} className="bg-card rounded-2xl p-5 border border-border">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <p className="text-sm text-muted-foreground">{stat.label}</p>
-                    <p className="text-3xl font-bold text-foreground">{stat.value}</p>
-                  </div>
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${stat.iconBg}`}>
-                    <stat.icon className={`w-5 h-5 ${stat.iconColor}`} />
-                  </div>
-                </div>
-                <div className={`flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider ${stat.up ? 'text-primary' : 'text-muted-foreground'}`}>
-                  {stat.change}
-                </div>
-              </div>
-            ))}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
+            <StatCard label="Volunteers" value={counts.volunteers} icon={Users} color="primary" trend="Total" />
+            <StatCard label="Pending" value={counts.pendingVolunteers} icon={FileCheck} color="orange" trend="Needs Action" />
+            <StatCard label="Active Missions" value={counts.activeRequests} icon={ClipboardList} color="blue" trend="Assigned" />
+            <StatCard label="Open Requests" value={counts.openRequests} icon={AlertTriangle} color="red" trend="Unassigned" />
           </div>
 
           <div className="grid lg:grid-cols-3 gap-6">
@@ -170,7 +159,7 @@ export default function AdminDashboardPage() {
               <div className="bg-card rounded-2xl p-6 border border-border shadow-soft">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-lg font-semibold text-foreground">Recent Platform Activity</h2>
-                  <button className="text-sm text-primary font-medium hover:underline">View All</button>
+                  <button className="text-sm text-primary font-medium hover:underline " onClick={() => router.push('/dashboard/admin/requests')}>View All</button>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full">

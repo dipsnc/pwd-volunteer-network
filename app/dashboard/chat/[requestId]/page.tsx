@@ -8,9 +8,12 @@ import { MessageList } from "@/components/chat/message-list"
 import { MessageInput } from "@/components/chat/message-input"
 import { db } from "@/lib/firebase"
 import { doc, getDoc, collection, query, where, orderBy, onSnapshot, getDocs } from "firebase/firestore"
-import { ArrowLeft, Loader2, ShieldCheck } from "lucide-react"
+import Link from "next/link"
+import { ArrowLeft, Loader2, ShieldCheck, Phone, Mail, ExternalLink } from "lucide-react"
 import type { Message } from "@/lib/chat-utils"
 import { createChat } from "@/lib/chat-utils"
+import CalmButton from "@/components/calm-button"
+import { cn } from "@/lib/utils"
 
 export default function ChatPage() {
   const params = useParams()
@@ -19,6 +22,8 @@ export default function ChatPage() {
   const { user, loading: authLoading } = useAuth()
   
   const [request, setRequest] = useState<any>(null)
+  const [currentUserProfile, setCurrentUserProfile] = useState<any>(null)
+  const [partnerProfile, setPartnerProfile] = useState<any>(null)
   const [chatId, setChatId] = useState<string | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
@@ -46,11 +51,10 @@ export default function ChatPage() {
           return
         }
 
-        // Determine user role and check access
-        const isStudent = reqData.studentId === user.uid
+        const isStudentRole = reqData.studentId === user.uid
         const isAssignedVolunteer = reqData.volunteerId === user.uid
         
-        if (!isStudent && !isAssignedVolunteer) {
+        if (!isStudentRole && !isAssignedVolunteer) {
           setError("You do not have permission to view this chat.")
           setLoading(false)
           return
@@ -58,7 +62,22 @@ export default function ChatPage() {
 
         setRequest(reqData)
         
-        // Find existing chat or create if missing (for backwards compatibility)
+        // Fetch Current User Profile for Sidebar
+        const userColl = isStudentRole ? "students" : "volunteers"
+        const userSnap = await getDoc(doc(db, userColl, user.uid))
+        if (userSnap.exists()) {
+          setCurrentUserProfile(userSnap.data())
+        }
+
+        // Fetch Partner Profile for Contact Details
+        const partnerId = isStudentRole ? reqData.volunteerId : reqData.studentId
+        const partnerColl = isStudentRole ? "volunteers" : "students"
+        const partnerSnap = await getDoc(doc(db, partnerColl, partnerId))
+        if (partnerSnap.exists()) {
+          setPartnerProfile(partnerSnap.data())
+        }
+        
+        // Find existing chat or create if missing
         const chatQuery = query(collection(db, "chats"), where("requestId", "==", requestId))
         const chatSnapshot = await getDocs(chatQuery)
         
@@ -137,38 +156,73 @@ export default function ChatPage() {
   }
 
   const isStudent = request.studentId === user.uid
-  const chatPartnerName = isStudent ? request.assignedVolunteerName : request.studentName
+  const chatPartnerName = isStudent ? request.volunteerName : request.studentName
 
   return (
-    <div className="min-h-screen bg-background flex flex-col md:flex-row">
-      {/* We guess the sidebar type based on if they are the student or volunteer for this request */}
-      <DashboardSidebar type={isStudent ? "student" : "volunteer"} userName={user.displayName || "User"} />
+    <div className="min-h-screen bg-background flex flex-col md:flex-row h-screen">
+      {/* Sidebar with fetched user details */}
+      <DashboardSidebar 
+        type={isStudent ? "student" : "volunteer"} 
+        userName={currentUserProfile?.fullName || user.displayName || "User"} 
+        userId={user.uid}
+        userAvatar={currentUserProfile?.profileImage}
+      />
       
-      <main className="flex-1 lg:ml-64 flex flex-col h-screen max-h-screen overflow-hidden">
+      <main className="flex-1 lg:ml-64 flex flex-col h-screen overflow-hidden">
         {/* Header */}
-        <header className="shrink-0 bg-card border-b border-border p-4 md:p-6 sticky top-0 z-30 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
+        <header className="shrink-0 bg-card border-b border-border px-6 py-5 sticky top-0 z-30 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4 flex-1 min-w-0">
             <button 
               onClick={() => router.back()}
-              className="w-10 h-10 rounded-full bg-muted/50 flex items-center justify-center hover:bg-muted transition-colors"
+              className="w-10 h-10 rounded-xl bg-muted/50 flex items-center justify-center hover:bg-muted transition-all hover:scale-105 shrink-0"
             >
               <ArrowLeft className="w-5 h-5 text-foreground" />
             </button>
-            <div>
+            <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold text-foreground">
+                <h1 className="text-xl font-display font-black text-foreground truncate tracking-tight">
                   {chatPartnerName}
                 </h1>
-                <div className="bg-green-100 text-green-700 p-1 rounded-md" title="Verified Session">
+                <div className="bg-primary/10 text-primary p-1 rounded-lg shrink-0" title="Verified Session">
                   <ShieldCheck className="w-4 h-4" />
                 </div>
               </div>
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest mt-1">
-                Mission: {request.title}
-              </p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] truncate opacity-80">
+                  Mission: {request.title}
+                </p>
+              </div>
             </div>
           </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            {partnerProfile?.phone && (
+              <a 
+                href={`tel:${partnerProfile.phone}`}
+                className="w-10 h-10 rounded-xl bg-green-500/10 text-green-600 flex items-center justify-center hover:bg-green-500/20 transition-all hover:scale-105"
+                title="Call Partner"
+              >
+                <Phone size={18} />
+              </a>
+            )}
+            {partnerProfile?.email && (
+              <a 
+                href={`mailto:${partnerProfile.email}`}
+                className="w-10 h-10 rounded-xl bg-blue-500/10 text-blue-600 flex items-center justify-center hover:bg-blue-500/20 transition-all hover:scale-105"
+                title="Email Partner"
+              >
+                <Mail size={18} />
+              </a>
+            )}
+            <Link 
+              href={`/profile/${isStudent ? request.volunteerId : request.studentId}`}
+              className="hidden sm:flex items-center gap-2 px-4 py-2 bg-muted/50 hover:bg-muted text-xs font-black uppercase tracking-widest rounded-xl transition-all"
+            >
+              View Profile
+            </Link>
+          </div>
         </header>
+
 
         {/* Chat Area */}
         <div className="flex-1 flex flex-col bg-muted/10 overflow-hidden relative">

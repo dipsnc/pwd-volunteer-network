@@ -10,6 +10,9 @@ import VolunteerRequestCard from '@/components/volunteer-request-card'
 import { type VolunteerRequest } from '@/lib/store'
 import { AnimatePresence, motion } from 'framer-motion'
 import ApplicantReviewModal from '@/components/applicant-review-modal'
+import { cn } from '@/lib/utils'
+import { useRouter } from 'next/navigation'
+import { playAudioMessage } from '@/lib/audio'
 
 type FilterType = 'all' | 'open' | 'assigned' | 'completed' | 'cancelled'
 
@@ -63,7 +66,7 @@ export default function StudentRequestsPage() {
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const dbRequests = snapshot.docs.map(doc => ({
-        id: doc.id,
+        uid: doc.id,
         ...doc.data()
       })) as VolunteerRequest[];
       setRequests(dbRequests);
@@ -102,87 +105,84 @@ export default function StudentRequestsPage() {
       
       <main className="lg:ml-64 min-h-screen">
         {/* Header */}
-        <header className="sticky top-0 z-30 bg-card border-b border-border px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="lg:ml-0 ml-12">
-              <h1 className="text-2xl font-bold text-foreground">My Requests</h1>
-              <p className="text-muted-foreground">Manage your help postings and volunteer applications.</p>
+        <header className="sticky top-0 z-30 bg-card/80 backdrop-blur-md border-b border-border px-4 sm:px-6 py-2 h-22">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between">
+            <div className="lg:ml-0 ml-12 sm:ml-0">
+              <h1 className="text-xl sm:text-3xl font-display font-black text-foreground tracking-tight leading-tight">
+                My <span className="text-primary">Requests</span>
+              </h1>
+              <p className="text-xs sm:text-sm text-muted-foreground font-medium mt-0.5 sm:mt-1 opacity-80">
+                Manage your help postings and volunteer applications.
+              </p>
             </div>
-            <div className="flex items-center gap-6">
-              <div className="hidden md:flex items-center gap-2 bg-muted/50 rounded-2xl px-5 py-2.5 border border-border/50">
+            <div className="flex items-center gap-3 sm:gap-4 self-end sm:self-auto">
+              <div className="hidden md:flex items-center gap-2 bg-muted/40 rounded-2xl px-5 py-3 border border-border/40 focus-within:border-primary/30 transition-all">
                 <Search className="w-4 h-4 text-muted-foreground" />
                 <input 
                   type="text" 
                   placeholder="Search requests..." 
-                  className="bg-transparent border-none outline-none text-sm w-40"
+                  className="bg-transparent border-none outline-none text-sm w-36 sm:w-48 placeholder:text-muted-foreground/50 font-medium"
                 />
               </div>
-              <button className="p-2 rounded-xl hover:bg-muted transition-colors">
-                <Bell className="w-5 h-5 text-muted-foreground" />
-              </button>
-              <button className="p-2 rounded-xl hover:bg-muted transition-colors">
-                <Settings className="w-5 h-5 text-muted-foreground" />
-              </button>
+              
             </div>
           </div>
         </header>
 
-        <div className="p-8 space-y-8">
+        <div className="p-4 sm:p-8 space-y-6 sm:space-y-8">
           {/* Quick Stats / Feedback */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-card p-6 rounded-3xl border border-border shadow-soft flex items-center gap-6">
-              <div className="w-14 h-14 rounded-2xl bg-primary/5 flex items-center justify-center border border-primary/10">
-                <FileText className="w-7 h-7 text-primary" />
+          {/* Quick Stats */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            <div className="bg-card p-5 sm:p-8 rounded-3xl border border-border shadow-soft flex items-center gap-4 sm:gap-6 group hover:border-primary/20 transition-all">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-primary/5 flex items-center justify-center border border-primary/10 group-hover:scale-110 transition-transform">
+                <FileText className="w-7 h-7 sm:w-8 sm:h-8 text-primary" />
               </div>
               <div>
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Total</p>
-                <h3 className="text-2xl font-bold text-foreground">{requests.length} Requests</h3>
+                <p className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] mb-1 opacity-70">Total</p>
+                <h3 className="text-xl sm:text-2xl font-display font-black text-foreground tracking-tight">{requests.length} Requests</h3>
               </div>
             </div>
-            <div className="bg-card p-6 rounded-3xl border border-border shadow-soft flex items-center gap-6">
-              <div className="w-14 h-14 rounded-2xl bg-orange-500/5 flex items-center justify-center border border-orange-500/10">
-                <Clock className="w-7 h-7 text-orange-500" />
+            <div className="bg-card p-5 sm:p-8 rounded-3xl border border-border shadow-soft flex items-center gap-4 sm:gap-6 group hover:border-orange-500/20 transition-all">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-orange-500/5 flex items-center justify-center border border-orange-500/10 group-hover:scale-110 transition-transform">
+                <Clock className="w-6 h-6 sm:w-8 sm:h-8 text-orange-500" />
               </div>
               <div>
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Open</p>
-                <h3 className="text-2xl font-bold text-foreground">{requests.filter(r => r.status === 'open').length} Active</h3>
+                <p className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] mb-1 opacity-70">Open</p>
+                <h3 className="text-xl sm:text-2xl font-display font-black text-foreground tracking-tight">{requests.filter(r => r.status === 'open').length} Active</h3>
               </div>
             </div>
-            <div className="bg-card p-6 rounded-3xl border border-border shadow-soft flex items-center gap-6">
-              <div className="w-14 h-14 rounded-2xl bg-green-500/5 flex items-center justify-center border border-green-500/10">
-                <CheckCircle className="w-7 h-7 text-green-500" />
+            <div className="bg-card p-5 sm:p-8 rounded-3xl border border-border shadow-soft flex items-center gap-4 sm:gap-6 group hover:border-green-500/20 transition-all sm:col-span-2 lg:col-span-1">
+              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-green-500/5 flex items-center justify-center border border-green-500/10 group-hover:scale-110 transition-transform">
+                <CheckCircle className="w-6 h-6 sm:w-8 sm:h-8 text-green-500" />
               </div>
               <div>
-                <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">Filled</p>
-                <h3 className="text-2xl font-bold text-foreground">{requests.filter(r => r.status === 'assigned' || r.status === 'completed').length} Successful</h3>
+                <p className="text-xs font-black text-muted-foreground uppercase tracking-[0.2em] mb-1 opacity-70">Filled</p>
+                <h3 className="text-xl sm:text-2xl font-display font-black text-foreground tracking-tight">{requests.filter(r => r.status === 'assigned' || r.status === 'completed').length} Successful</h3>
               </div>
             </div>
           </div>
 
-          <div className="bg-card rounded-[32px] border border-border shadow-soft p-8 space-y-8">
+          <div className="bg-card rounded-[32px] border border-border shadow-soft p-5 sm:p-8 space-y-6 sm:space-y-8">
             {/* Filter Bar */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 scrollbar-hide">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6 pb-4 border-b border-border/50">
+              <div className="flex items-center gap-3 overflow-x-auto pb-4 sm:pb-0 scrollbar-hide no-scrollbar -mx-2 px-2">
                 {filters.map((filter) => (
                   <button
                     key={filter.id}
-                    onClick={() => setActiveFilter(filter.id)}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-2xl text-xs font-bold whitespace-nowrap transition-all ${
+                    onClick={() => { setActiveFilter(filter.id); playAudioMessage(`Filter set to ${filter.label}`); }}
+                    aria-label={`Filter by ${filter.label}`}
+                    className={`flex items-center gap-2 px-4 py-2.5 sm:px-6 sm:py-3.5 rounded-2xl text-[10px] sm:text-xs font-black uppercase tracking-widest whitespace-nowrap transition-all border-2 ${
                       activeFilter === filter.id
-                        ? 'bg-primary text-primary-foreground shadow-soft'
-                        : 'bg-muted/30 border border-border/50 text-muted-foreground hover:text-foreground'
+                        ? 'bg-primary border-primary text-primary-foreground shadow-soft'
+                        : 'bg-muted/30 border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50'
                     }`}
                   >
-                    <filter.icon className="w-3.5 h-3.5" />
+                    <filter.icon className={cn("w-4 h-4", activeFilter === filter.id ? "text-primary-foreground" : "text-primary/60")} />
                     {filter.label}
                   </button>
                 ))}
               </div>
-              <div className="flex items-center gap-3">
-                 <button className="flex items-center gap-2 px-5 py-3 bg-muted/30 rounded-2xl border border-border/50 text-xs font-bold text-muted-foreground hover:text-foreground transition-all">
-                   <Filter className="w-3.5 h-3.5" /> Sort By: Newest
-                 </button>
-              </div>
+              
             </div>
 
             {/* Requests Grid */}
@@ -194,22 +194,23 @@ export default function StudentRequestsPage() {
                   ))}
                 </div>
               ) : filteredRequests.length === 0 ? (
-                <div className="text-center py-20 bg-muted/10 rounded-[40px] border-2 border-dashed border-border/50">
-                  <div className="w-20 h-20 bg-muted rounded-full flex items-center justify-center mx-auto mb-6">
-                    <FileText className="w-10 h-10 text-muted-foreground/40" />
+                <div className="text-center py-20 bg-muted/10 rounded-[40px] border-2 border-dashed border-border/50 group hover:border-primary/20 transition-all duration-500">
+                  <div className="w-24 h-24 bg-card rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-soft group-hover:scale-110 transition-transform duration-500">
+                    <FileText className="w-10 h-10 text-primary/40 group-hover:text-primary transition-colors" />
                   </div>
-                  <h3 className="text-xl font-display font-bold text-foreground mb-2">No Requests Found</h3>
-                  <p className="text-muted-foreground max-w-xs mx-auto font-medium">There are no requests matching your current filter.</p>
+                  <h3 className="text-2xl font-display font-black text-foreground mb-3 tracking-tight ">No Requests <span className="text-primary not-italic">Found</span></h3>
+                  <p className="text-muted-foreground max-w-xs mx-auto font-bold opacity-60 uppercase text-[10px] tracking-[0.2em]">There are no requests matching your current filter.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 gap-6">
                   {filteredRequests.map((request) => (
                     <VolunteerRequestCard 
-                      key={request.id} 
+                      key={request.uid} 
                       request={request}
                       isStudentView={true}
-                      applicantCount={applicantCounts[request.id] || 0}
-                      onClick={() => setSelectedRequestForReview(request)}
+                      applicantCount={applicantCounts[request.uid] || 0}
+                      onClick={() => { setSelectedRequestForReview(request); playAudioMessage("Opening request details"); }}
+                      aria-label={`View details for request ${request.title}`}
                     />
                   ))}
                 </div>

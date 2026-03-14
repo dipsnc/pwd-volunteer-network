@@ -1,6 +1,6 @@
 // localStorage-based data store for PWD Volunteer Network
 export interface StudentUser {
-  id: string;
+  uid: string;
   type: 'student';
   fullName: string;
   phone: string;
@@ -10,24 +10,31 @@ export interface StudentUser {
   motherName: string;
   fatherName: string;
   guardianName: string;
-  parentPhones: string[];
   parentEmails: string[];
   bloodGroup: string;
-  age: string;
-  weight: string;
-  height: string;
+  age: number;
+  weight?: number;
+  height?: number;
+  assistanceNeeds?: string;
   enrolledInCollege: boolean;
   courseDetails: string;
   collegeIdName?: string;
   photoName?: string;
+  profilePhotoUrl?: string | null;
+  govIdUrl?: string | null;
+  disabilityCertificateUrl?: string | null;
   username: string;
-  password: string;
-  disabilityType: string;
+  verificationStatus: 'pending' | 'verified' | 'rejected' | 'ban';
+  lastActiveAt: string;
+  managedByGuardian: boolean;
+  parentPhones?: string[];
+  disabilityTypes?: string[];
+  disabilityType?: string; // Legacy support
   createdAt: string;
 }
 
 export interface VolunteerUser {
-  id: string;
+  uid: string;
   type: 'volunteer';
   fullName: string;
   phone: string;
@@ -45,25 +52,34 @@ export interface VolunteerUser {
   locationPreference: string;
   permanentAddress: string;
   bloodGroup: string;
-  age: string;
-  weight: string;
-  height: string;
+  age: number;
+  weight?: number;
+  height?: number;
   skills: string;
   assistanceType: string;
+  assistanceTypes?: string[];
+  profilePhotoUrl?: string | null;
+  studentIdUrl?: string | null;
+  govIdUrl?: string | null;
   username: string;
-  password: string;
+  verificationStatus: 'pending' | 'approved' | 'declined' | 'ban';
+  lastActiveAt: string;
   status: 'pending' | 'approved' | 'declined';
+  completedMissions: number;
+  rating: number | null;
   createdAt: string;
 }
 
 export interface VolunteerRequest {
-  id: string;
+  uid: string;
   studentId: string;
   studentName: string;
   studentAvatar?: string;
   title: string;
   description: string;
   date: string;
+  startTime?: string;
+  endTime?: string;
   time: string;
   urgency: 'low' | 'medium' | 'high';
   tasks: string[];
@@ -73,16 +89,19 @@ export interface VolunteerRequest {
     lng: number;
     address: string;
   };
-  status: 'open' | 'assigned' | 'completed';
+  status: 'pending' | 'open' | 'assigned' | 'completed' | 'rejected';
   volunteerId?: string;
   volunteerName?: string;
+  assignedVolunteerId?: string;
+  applications?: string[];
   points?: number;
   duration?: string;
+  updatedAt?: string;
   createdAt: string;
 }
 
 export interface Appointment {
-  id: string;
+  uid: string;
   studentId: string;
   studentName: string;
   studentPhone: string;
@@ -122,13 +141,13 @@ function setJSON(key: string, value: unknown) {
 export function getStudents(): StudentUser[] { return getJSON(STUDENTS_KEY, []); }
 export function saveStudent(user: StudentUser) {
   const all = getStudents();
-  const idx = all.findIndex(u => u.id === user.id);
+  const idx = all.findIndex(u => u.uid === user.uid);
   if (idx >= 0) all[idx] = user; else all.push(user);
   setJSON(STUDENTS_KEY, all);
 }
-export function findStudentByLogin(identifier: string, password: string): StudentUser | null {
+export function findStudentByLogin(identifier: string): StudentUser | null {
   return getStudents().find(u =>
-    (u.username === identifier || u.email === identifier || u.phone === identifier) && u.password === password
+    (u.username === identifier || u.email === identifier || u.phone === identifier)
   ) || null;
 }
 export function findStudentByEmail(email: string): StudentUser | null {
@@ -139,23 +158,23 @@ export function findStudentByEmail(email: string): StudentUser | null {
 export function getVolunteers(): VolunteerUser[] { return getJSON(VOLUNTEERS_KEY, []); }
 export function saveVolunteer(user: VolunteerUser) {
   const all = getVolunteers();
-  const idx = all.findIndex(u => u.id === user.id);
+  const idx = all.findIndex(u => u.uid === user.uid);
   if (idx >= 0) all[idx] = user; else all.push(user);
   setJSON(VOLUNTEERS_KEY, all);
 }
-export function findVolunteerByLogin(identifier: string, password: string): VolunteerUser | null {
+export function findVolunteerByLogin(identifier: string): VolunteerUser | null {
   return getVolunteers().find(u =>
-    (u.username === identifier || u.email === identifier || u.phone === identifier) && u.password === password
+    (u.username === identifier || u.email === identifier || u.phone === identifier)
   ) || null;
 }
-export function approveVolunteer(id: string) {
+export function approveVolunteer(uid: string) {
   const all = getVolunteers();
-  const v = all.find(u => u.id === id);
+  const v = all.find(u => u.uid === uid);
   if (v) { v.status = 'approved'; setJSON(VOLUNTEERS_KEY, all); }
 }
-export function declineVolunteer(id: string) {
+export function declineVolunteer(uid: string) {
   const all = getVolunteers();
-  const v = all.find(u => u.id === id);
+  const v = all.find(u => u.uid === uid);
   if (v) { v.status = 'declined'; setJSON(VOLUNTEERS_KEY, all); }
 }
 
@@ -163,7 +182,7 @@ export function declineVolunteer(id: string) {
 export function getAppointments(): Appointment[] { return getJSON(APPOINTMENTS_KEY, []); }
 export function saveAppointment(appt: Appointment) {
   const all = getAppointments();
-  const idx = all.findIndex(a => a.id === appt.id);
+  const idx = all.findIndex(a => a.uid === appt.uid);
   if (idx >= 0) all[idx] = appt; else all.push(appt);
   setJSON(APPOINTMENTS_KEY, all);
 }
@@ -172,7 +191,7 @@ export function saveAppointment(appt: Appointment) {
 export function getVolunteerRequests(): VolunteerRequest[] { return getJSON(REQUESTS_KEY, []); }
 export function saveVolunteerRequest(req: VolunteerRequest) {
   const all = getVolunteerRequests();
-  const idx = all.findIndex(r => r.id === req.id);
+  const idx = all.findIndex(r => r.uid === req.uid);
   if (idx >= 0) all[idx] = req; else all.push(req);
   setJSON(REQUESTS_KEY, all);
 }
