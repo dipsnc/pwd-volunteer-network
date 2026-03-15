@@ -231,7 +231,7 @@ export default function ApplicantReviewModal({ request, onClose }: ApplicantRevi
 
               {/* Action */}
               <div className="pt-6 border-t border-border mt-auto">
-                {selectedApplicant.status === 'accepted' ? (
+                {(selectedApplicant.status === 'accepted' || selectedApplicant.status === 'completed') ? (
                   <Link href={`/dashboard/chat/${request.uid}`} className="block w-full" aria-label={`Open chat with ${selectedApplicant.volunteerName.split(' ')[0]}`} onClick={() => playAudioMessage("Opening chat")}>
                     <CalmButton className="w-full py-6 rounded-2xl text-base bg-blue-600 hover:bg-blue-700">
                       Open Chat with {selectedApplicant.volunteerName.split(' ')[0]}

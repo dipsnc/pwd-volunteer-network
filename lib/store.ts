@@ -72,6 +72,7 @@ export interface VolunteerUser {
 
 export interface VolunteerRequest {
   uid: string;
+  id?: string;
   studentId: string;
   studentName: string;
   studentAvatar?: string;

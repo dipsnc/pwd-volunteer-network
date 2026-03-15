@@ -45,8 +45,8 @@ export default function ChatPage() {
         const reqData = reqDoc.data()
         
         // Ensure request is assigned
-        if (reqData.status !== 'assigned') {
-          setError("Chat is only available for assigned missions.")
+        if (reqData.status !== 'assigned' && reqData.status !== 'completed') {
+          setError("Chat is only available for assigned or completed missions.")
           setLoading(false)
           return
         }

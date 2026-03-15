@@ -31,7 +31,7 @@ export default function VolunteerApplicationCard({ app, onEdit, onDelete }: Volu
         </div>
         
         <div className="flex items-center gap-3">
-          {app.status === 'accepted' && (
+          {(app.status === 'accepted' || app.status === 'completed') && (
             <Link 
               href={`/dashboard/chat/${app.requestId}`}
               className="px-3 py-1.5 bg-primary text-primary-foreground text-[10px] font-black uppercase tracking-widest rounded-full hover:bg-primary/90 transition-colors shadow-soft flex items-center gap-1.5"

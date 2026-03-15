@@ -25,25 +25,35 @@ export default function VolunteerRequestCard({ request, onClick, applicantCount 
     e.stopPropagation();
     setIsUpdating(true);
     try {
-      await updateDoc(doc(db, "requests", request.uid), {
+      const reqId = request.uid || request.id;
+      if (!reqId) return;
+
+      await updateDoc(doc(db, "requests", reqId), {
         status: 'completed',
         updatedAt: serverTimestamp()
       });
 
       // Synchronize with applications
       const appsRef = collection(db, "applications");
-      const q = query(appsRef, where("requestId", "==", request.uid), where("status", "==", "accepted"));
+      const q = query(appsRef, where("requestId", "==", reqId));
       const querySnapshot = await getDocs(q);
       
       if (!querySnapshot.empty) {
         const batch = writeBatch(db);
-        querySnapshot.docs.forEach((doc) => {
-          batch.update(doc.ref, { 
-            status: 'completed',
-            updatedAt: serverTimestamp()
-          });
+        let count = 0;
+        querySnapshot.docs.forEach((docSnap) => {
+          const appData = docSnap.data();
+          if (appData.status === 'accepted') {
+            batch.update(docSnap.ref, { 
+              status: 'completed',
+              updatedAt: serverTimestamp()
+            });
+            count++;
+          }
         });
-        await batch.commit();
+        if (count > 0) {
+          await batch.commit();
+        }
       }
 
       toast.success("Mission Mark as Complete!", {
@@ -177,8 +187,8 @@ export default function VolunteerRequestCard({ request, onClick, applicantCount 
         </div>
       </div>
 
-      {/* Action Area for Assigned Missions */}
-      {request.status === 'assigned' && (
+      {/* Action Area for Assigned or Completed Missions */}
+      {(request.status === 'assigned' || request.status === 'completed') && (
         <div className="mt-4 sm:mt-6 pt-4 border-t border-border flex flex-wrap gap-2.5 sm:gap-3 items-center justify-end relative z-20">
           <Link 
             href={`/dashboard/chat/${request.uid}`}
@@ -191,20 +201,22 @@ export default function VolunteerRequestCard({ request, onClick, applicantCount 
             </CalmButton>
           </Link>
           
-          <CalmButton 
-            onClick={handleComplete}
-            disabled={isUpdating}
-            className="flex-1 sm:flex-none flex items-center justify-center gap-2 py-2 px-6 bg-green-500 text-white hover:bg-green-600 rounded-xl transition-all shadow-soft"
-          >
-            {isUpdating ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <CheckCircleIcon size={16} />
-            )}
-            <span className="text-xs font-black uppercase tracking-widest leading-none">
-              {isUpdating ? "Finishing..." : "Mark as Complete"}
-            </span>
-          </CalmButton>
+          {request.status === 'assigned' && (
+            <CalmButton 
+              onClick={handleComplete}
+              disabled={isUpdating}
+              className="flex-1 sm:flex-none flex items-center justify-center gap-2 py-2 px-6 bg-green-500 text-white hover:bg-green-600 rounded-xl transition-all shadow-soft"
+            >
+              {isUpdating ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <CheckCircleIcon size={16} />
+              )}
+              <span className="text-xs font-black uppercase tracking-widest leading-none">
+                {isUpdating ? "Finishing..." : "Mark as Complete"}
+              </span>
+            </CalmButton>
+          )}
         </div>
       )}
 
